@@ -1,0 +1,48 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Monthly_Status]    Script Date: 12/24/2018 09:49:37 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[Monthly_Status] @Month Nvarchar(20), @Year INT
+AS
+declare @Month2 Nvarchar(20), @Year2 INT
+declare @columns varchar(max)
+declare @convert varchar(max)
+
+DROP Table Temp_Monthly_Status
+
+
+select @columns=STUFF(( select distinct '],[' + Designation
+                        from Monthly_Status_Main
+       --                 order by '],[' + CONVERT(varchar(max),Principal_paid_PerMonth) desc
+                        order by 1
+                        for XML path ('')),1,2,'') + ']'
+                        
+set @convert=
+ 'select * INTO Temp_Monthly_Status from (select Comid,SL,Particulars,Month,Year,Designation,Emp from Monthly_Status_Main WHERE Month='''+ @Month +''' AND Year = ' + CAST(@Year AS varchar(10)) +'  group by Comid,SL,Particulars,Month,Year,Designation,Emp) details
+  pivot (SUM(Emp) for Designation
+  in ('+@columns+')) as pivottable'
+  
+ 
+execute (@convert)
+
+SELECT @MONTH2=MonthName,@Year2=YearName FROM New_Month_Name
+WHERE MonthID=(SELECT MonthID-1 FROM New_Month_Name WHERE YearName=@Year AND MonthName=@Month)
+
+set @convert=
+ 'INSERT INTO Temp_Monthly_Status select * from (select Comid,16 As SL,Particulars,Month,Year,Designation,Emp from Monthly_Status_Main WHERE SL=1 AND Month='''+ @Month2 +''' AND Year = ' + CAST(@Year2 AS varchar(10)) +'  group by Comid,Particulars,Month,Year,Designation,Emp) details
+  pivot (SUM(Emp) for Designation
+  in ('+@columns+')) as pivottable'
+  
+ 
+execute (@convert)
+
+INSERT INTO Temp_Monthly_Status
+SELECT  Comid, SL,'Total-5', Month, Year, Sum(HELPER), SUM([JR.MGT]), SUM([JR.OPERATOR]), SUM(Office), SUM(OPERATOR), SUM(PRODUCTION), SUM([Q.C.]), SUM([SR.MGT]), SUM([SR.OPERATOR]),SUM(STAFF)
+FROM Temp_Monthly_Status
+WHERE SL=5
+GROUP BY Comid, SL,Month, Year
+
+SELECT * FROM Temp_Monthly_Status ORDER BY SL

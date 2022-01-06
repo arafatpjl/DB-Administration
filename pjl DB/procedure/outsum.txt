@@ -1,0 +1,495 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[outsum]    Script Date: 12/24/2018 09:53:20 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+---Step1
+
+--exec outsum 1,5,6,2009,'W'
+--DROP PROC OUTSUM
+
+
+ALTER proc [dbo].[outsum] @a int, @Comid int, @dtmonth int,@dtyear int,@wstatus nvarchar(10)
+as
+
+
+Declare @strmonth nvarchar(25) 
+
+
+
+
+
+
+if @dtmonth=1
+BEGIN
+SELECT @strmonth= 'JANUARY'
+End
+else if @dtmonth=2
+BEGIN
+SELECT @strmonth='FEBRUARY'
+End
+else if @dtmonth=3
+BEGIN
+SELECT @strmonth='MARCH'
+End
+else if @dtmonth=4
+BEGIN
+SELECT @strmonth='APRIL'
+End
+else if @dtmonth=5
+BEGIN
+SELECT @strmonth='MAY'
+End
+else if @dtmonth=6
+BEGIN
+SELECT @strmonth='JUNE'
+End
+else if @dtmonth=7
+BEGIN
+SELECT @strmonth='JULY'
+End
+else if @dtmonth=8
+BEGIN
+SELECT @strmonth='AUGUST'
+End
+else if @dtmonth=9
+BEGIN
+SELECT @strmonth='SEPTEMBER'
+End
+else if @dtmonth=10
+BEGIN
+SELECT @strmonth='OCTOBER'
+End
+else if @dtmonth=11
+BEGIN
+SELECT @strmonth='NOVEMBER'
+End
+else if @dtmonth=12
+BEGIN
+SELECT @strmonth='DECEMBER'
+End
+
+
+INSERT INTO RPTFOR(DEPARTMENT,SECTION,YEAR,EMPSTATUS) VALUES(1,@STRMONTH,@DTYEAR,@WSTATUS)
+
+Delete from otsum
+Delete from otsum1
+
+
+if @a=1 
+
+begin
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '4:30' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '4:24:00 pm') AND (TimeOut <= '4:55:00 pm')AND (ComID =@comid)  AND datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '6:30' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '4:55:00 pm') AND (TimeOut <= '6:55:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '8:00' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '6:55:00 pm')AND (TimeOut <= '8:24:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '9:30' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '8:24:00 pm')AND (TimeOut <= '9:24:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '11:00' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '9:24:00 pm')AND (TimeOut <= '11:24:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, 'other' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (((TimeOut > '12:00:00 am')AND (TimeOut <= '4:24:00 pm')) or ((TimeOut > '11:24:00 pm')AND (TimeOut <= '11:59:00 pm'))) AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+
+
+-----step2
+
+update A  set A.strength=b.totalemp
+FROM otsum A,(SELECT COUNT(*) AS totalemp, Department, [Section]
+FROM         dbo.Employee_Information
+WHERE     (ComID = @comid) AND (MLeft = 0) AND (WStatus = @wstatus)
+GROUP BY Department, [Section]) B
+ where       
+                      B.Department = A.Department AND B.[Section] = A.[Section]
+
+------step3
+
+UPDATE    Otsum
+SET              Persent = (Perday / Strength) * 100
+
+
+
+--------step4
+
+
+update otsum set fourPresentTotalEmp=PresentTotalEmp,fourperday=perday,fourpersent=persent,fourtotalday=totalday
+where timeout='4:30' 
+
+update otsum set sixPresentTotalEmp=PresentTotalEmp,sixperday=perday,sixpersent=persent,sixtotalday=totalday  
+where timeout='6:30' 
+
+
+update otsum set eightPresentTotalEmp=PresentTotalEmp,eightperday=perday,eightpersent=persent,eighttotalday=totalday 
+where timeout='8:00' 
+
+
+update otsum set ninePresentTotalEmp=PresentTotalEmp,nineperday=perday,ninepersent=persent,ninetotalday=totalday
+where timeout='9:30' 
+
+
+update otsum set elevenPresentTotalEmp=PresentTotalEmp,elevenperday=perday,elevenpersent=persent,eleventotalday=totalday
+where timeout='11:00'
+
+
+update otsum set otherPresentTotalEmp=PresentTotalEmp,otherperday=perday,otherpersent=persent,othertotalday=totalday
+where timeout='other'
+
+
+---step5
+insert into otsum1 (Strength, PresentTotalEmp, Department, [Section], Totalday, Perday, Timeout, Persent, fourPresentTotalEmp, Fourtotalday, Fourperday, Fourpersent, 
+                      SixPresentTotalEmp, sixtotalday, Sixperday, Sixpersent, EightPresentTotalEmp, Eighttotalday, Eightperday, eightpersent, NinePresentTotalEmp, 
+                      ninetotalday, Nineperday, Ninepersent, ElevenPresentTotalEmp, eleventotalday, Elevenperday, Elevenpersent,  OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent)
+select Strength, PresentTotalEmp, Department, [Section], Totalday, Perday, Timeout, Persent, fourPresentTotalEmp, Fourtotalday, Fourperday, Fourpersent, 
+                      SixPresentTotalEmp, sixtotalday, Sixperday, Sixpersent, EightPresentTotalEmp, Eighttotalday, Eightperday, eightpersent, NinePresentTotalEmp, 
+                      ninetotalday, Nineperday, Ninepersent, ElevenPresentTotalEmp, eleventotalday, Elevenperday, Elevenpersent, OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent from otsum
+
+
+
+---step6
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.fourtotalday = dbo.Otsum1.fourtotalday, dbo.Otsum.fourperday = dbo.Otsum1.fourperday, 
+  dbo.Otsum.fourpersent = dbo.Otsum1.fourpersent,dbo.Otsum.fourPresentTotalEmp = dbo.Otsum1.fourPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+    dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+                      dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.Fourtotalday >0)
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.sixtotalday = dbo.Otsum1.sixtotalday, dbo.Otsum.sixperday = dbo.Otsum1.sixperday, 
+        dbo.Otsum.sixpersent = dbo.Otsum1.sixpersent,dbo.Otsum.sixPresentTotalEmp = dbo.Otsum1.sixPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+     dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+      dbo.Otsum1.[Section] = dbo.Otsum.[Section] 
+WHERE     (dbo.Otsum1.sixtotalday >0)
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.eighttotalday = dbo.Otsum1.eighttotalday, dbo.Otsum.eightperday = dbo.Otsum1.eightperday, 
+  dbo.Otsum.eightpersent = dbo.Otsum1.eightpersent,dbo.Otsum.eightPresentTotalEmp = dbo.Otsum1.eightPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+      dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+      dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.eighttotalday >0)
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.ninetotalday = dbo.Otsum1.ninetotalday, dbo.Otsum.nineperday = dbo.Otsum1.nineperday, 
+   dbo.Otsum.ninepersent = dbo.Otsum1.ninepersent,dbo.Otsum.ninePresentTotalEmp = dbo.Otsum1.ninePresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+    dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+      dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.ninetotalday >0)
+
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.eleventotalday = dbo.Otsum1.eleventotalday, dbo.Otsum.elevenperday = dbo.Otsum1.elevenperday, 
+ dbo.Otsum.elevenpersent = dbo.Otsum1.elevenpersent,dbo.Otsum.elevenPresentTotalEmp = dbo.Otsum1.elevenPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+        dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+     dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.eleventotalday >0)
+
+
+
+---OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.OtherTotalday = dbo.Otsum1.OtherTotalday, dbo.Otsum.Otherperday = dbo.Otsum1.Otherperday, 
+ dbo.Otsum.Otherpersent = dbo.Otsum1.Otherpersent,dbo.Otsum.OtherPresentTotalEmp = dbo.Otsum1.OtherPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+        dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+     dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.OtherTotalday >0)
+
+
+
+
+
+
+Delete from otsum1
+insert into otsum1 (Strength, Department, [Section], Fourtotalday, Fourperday, Fourpersent, sixtotalday, Sixperday, Sixpersent, Eighttotalday, 
+                      Eightperday, eightpersent, ninetotalday, Nineperday, Ninepersent, eleventotalday, Elevenperday, Elevenpersent, fourPresentTotalEmp, 
+                      SixPresentTotalEmp, EightPresentTotalEmp, NinePresentTotalEmp, ElevenPresentTotalEmp,OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent)
+SELECT      Strength, Department, [Section], Fourtotalday, Fourperday, Fourpersent, sixtotalday, Sixperday, Sixpersent, Eighttotalday, 
+                      Eightperday, eightpersent, ninetotalday, Nineperday, Ninepersent, eleventotalday, Elevenperday, Elevenpersent, fourPresentTotalEmp, 
+                      SixPresentTotalEmp, EightPresentTotalEmp, NinePresentTotalEmp, ElevenPresentTotalEmp,OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent
+FROM         Otsum
+GROUP BY 	Strength, Department, [Section], Fourtotalday, Fourperday, Fourpersent, sixtotalday, Sixperday, Sixpersent, Eighttotalday, Eightperday, eightpersent, 
+                      ninetotalday, Nineperday, Ninepersent, eleventotalday, Elevenperday, Elevenpersent, fourPresentTotalEmp, SixPresentTotalEmp, 
+                      EightPresentTotalEmp, NinePresentTotalEmp, ElevenPresentTotalEmp,OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent
+ORDER BY Department, [Section]
+
+
+UPDATE OTSUM1 SET COMID=@COMID,month=@strmonth,year=@dtyear,wstatus=@wstatus
+
+End
+
+else
+
+
+
+begin
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '4:30' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '4:24:00 pm') AND (TimeOut <= '4:55:00 pm')AND (ComID = @comid)  AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus)
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '6:30' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '4:55:00 pm') AND (TimeOut <= '6:55:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '8:00' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '6:55:00 pm')AND (TimeOut <= '8:24:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '9:30' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '8:24:00 pm')AND (TimeOut <= '9:24:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, '11:00' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (TimeOut > '9:24:00 pm')AND (TimeOut <= '11:24:00 pm') AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID =@comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+
+Insert into otsum (PresentTotalemp,Department,Section,Totalday,Perday,Timeout) 
+SELECT     TOP 100 PERCENT COUNT(EmpCode) AS PresentTotalemp, Department, [Section], COUNT(DISTINCT DailyDate) AS totalday, COUNT(EmpCode) 
+                      / COUNT(DISTINCT DailyDate) AS Perday, 'other' AS Timeout
+FROM         dbo.Empinfoattn
+WHERE     (((TimeOut > '12:00:00 am')AND (TimeOut <= '4:24:00 pm')) or ((TimeOut > '11:24:00 pm')AND (TimeOut <= '11:59:00 pm')))AND  datepart(mm,dailydate)=@dtmonth and datepart(yy,dailydate)=@dtyear AND (WStatus = @wstatus) AND (ComID = @comid) 
+GROUP BY Department, [Section]
+ORDER BY Department, [Section]
+
+
+
+
+-----step2
+  
+
+
+
+
+
+update A  set A.strength=b.totalemp
+FROM otsum A,(SELECT     COUNT(*) AS Totalemp, DeptName, SubDeptName
+FROM         Salary_And_Wages
+WHERE     ([Year] = @dtyear) AND ([Month] = @STRmonth) AND (ComID = @comid) AND (Wstatus = @wstatus)
+GROUP BY DeptName, SubDeptName) B
+ where       
+                      B.DeptName = A.Department AND B.SubDeptName = A.[Section]
+
+------step3
+
+UPDATE    Otsum
+SET              Persent = Perday / Strength * 100
+
+
+
+--------step4
+
+
+update otsum set fourPresentTotalEmp=PresentTotalEmp,fourperday=perday,fourpersent=persent,fourtotalday=totalday
+where timeout='4:30' 
+
+update otsum set sixPresentTotalEmp=PresentTotalEmp,sixperday=perday,sixpersent=persent,sixtotalday=totalday  
+where timeout='6:30' 
+
+
+update otsum set eightPresentTotalEmp=PresentTotalEmp,eightperday=perday,eightpersent=persent,eighttotalday=totalday 
+where timeout='8:00' 
+
+
+update otsum set ninePresentTotalEmp=PresentTotalEmp,nineperday=perday,ninepersent=persent,ninetotalday=totalday
+where timeout='9:30' 
+
+
+update otsum set elevenPresentTotalEmp=PresentTotalEmp,elevenperday=perday,elevenpersent=persent,eleventotalday=totalday
+where timeout='11:00'
+
+
+
+
+
+update otsum set otherPresentTotalEmp=PresentTotalEmp,otherperday=perday,otherpersent=persent,othertotalday=totalday
+where timeout='other'
+
+
+---step5
+insert into otsum1 (Strength, PresentTotalEmp, Department, [Section], Totalday, Perday, Timeout, Persent, fourPresentTotalEmp, Fourtotalday, Fourperday, Fourpersent, 
+                      SixPresentTotalEmp, sixtotalday, Sixperday, Sixpersent, EightPresentTotalEmp, Eighttotalday, Eightperday, eightpersent, NinePresentTotalEmp, 
+                      ninetotalday, Nineperday, Ninepersent, ElevenPresentTotalEmp, eleventotalday, Elevenperday, Elevenpersent,  OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent)
+select Strength, PresentTotalEmp, Department, [Section], Totalday, Perday, Timeout, Persent, fourPresentTotalEmp, Fourtotalday, Fourperday, Fourpersent, 
+                      SixPresentTotalEmp, sixtotalday, Sixperday, Sixpersent, EightPresentTotalEmp, Eighttotalday, Eightperday, eightpersent, NinePresentTotalEmp, 
+                      ninetotalday, Nineperday, Ninepersent, ElevenPresentTotalEmp, eleventotalday, Elevenperday, Elevenpersent, OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent from otsum
+
+
+
+---step6
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.fourtotalday = dbo.Otsum1.fourtotalday, dbo.Otsum.fourperday = dbo.Otsum1.fourperday, 
+  dbo.Otsum.fourpersent = dbo.Otsum1.fourpersent,dbo.Otsum.fourPresentTotalEmp = dbo.Otsum1.fourPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+    dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+                      dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.Fourtotalday >0)
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.sixtotalday = dbo.Otsum1.sixtotalday, dbo.Otsum.sixperday = dbo.Otsum1.sixperday, 
+        dbo.Otsum.sixpersent = dbo.Otsum1.sixpersent,dbo.Otsum.sixPresentTotalEmp = dbo.Otsum1.sixPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+     dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+      dbo.Otsum1.[Section] = dbo.Otsum.[Section] 
+WHERE     (dbo.Otsum1.sixtotalday >0)
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.eighttotalday = dbo.Otsum1.eighttotalday, dbo.Otsum.eightperday = dbo.Otsum1.eightperday, 
+  dbo.Otsum.eightpersent = dbo.Otsum1.eightpersent,dbo.Otsum.eightPresentTotalEmp = dbo.Otsum1.eightPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+      dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+      dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.eighttotalday >0)
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.ninetotalday = dbo.Otsum1.ninetotalday, dbo.Otsum.nineperday = dbo.Otsum1.nineperday, 
+   dbo.Otsum.ninepersent = dbo.Otsum1.ninepersent,dbo.Otsum.ninePresentTotalEmp = dbo.Otsum1.ninePresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+    dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+      dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.ninetotalday >0)
+
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.eleventotalday = dbo.Otsum1.eleventotalday, dbo.Otsum.elevenperday = dbo.Otsum1.elevenperday, 
+ dbo.Otsum.elevenpersent = dbo.Otsum1.elevenpersent,dbo.Otsum.elevenPresentTotalEmp = dbo.Otsum1.elevenPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+        dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+     dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.eleventotalday >0)
+
+
+
+
+UPDATE    dbo.Otsum
+SET              dbo.Otsum.OtherTotalday = dbo.Otsum1.OtherTotalday, dbo.Otsum.Otherperday = dbo.Otsum1.Otherperday, 
+ dbo.Otsum.Otherpersent = dbo.Otsum1.Otherpersent,dbo.Otsum.OtherPresentTotalEmp = dbo.Otsum1.OtherPresentTotalEmp
+FROM         dbo.Otsum1 INNER JOIN
+        dbo.Otsum ON dbo.Otsum1.Strength = dbo.Otsum.Strength AND dbo.Otsum1.Department = dbo.Otsum.Department AND 
+     dbo.Otsum1.[Section] = dbo.Otsum.[Section]
+WHERE     (dbo.Otsum1.OtherTotalday >0)
+
+
+
+
+
+--step7
+
+
+Delete from otsum1
+insert into otsum1 (Strength, Department, [Section], Fourtotalday, Fourperday, Fourpersent, sixtotalday, Sixperday, Sixpersent, Eighttotalday, 
+                      Eightperday, eightpersent, ninetotalday, Nineperday, Ninepersent, eleventotalday, Elevenperday, Elevenpersent, fourPresentTotalEmp, 
+                      SixPresentTotalEmp, EightPresentTotalEmp, NinePresentTotalEmp, ElevenPresentTotalEmp,OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent)
+SELECT      Strength, Department, [Section], Fourtotalday, Fourperday, Fourpersent, sixtotalday, Sixperday, Sixpersent, Eighttotalday, 
+                      Eightperday, eightpersent, ninetotalday, Nineperday, Ninepersent, eleventotalday, Elevenperday, Elevenpersent, fourPresentTotalEmp, 
+                      SixPresentTotalEmp, EightPresentTotalEmp, NinePresentTotalEmp, ElevenPresentTotalEmp,OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent
+FROM         Otsum
+GROUP BY 	Strength, Department, [Section], Fourtotalday, Fourperday, Fourpersent, sixtotalday, Sixperday, Sixpersent, Eighttotalday, Eightperday, eightpersent, 
+                      ninetotalday, Nineperday, Ninepersent, eleventotalday, Elevenperday, Elevenpersent, fourPresentTotalEmp, SixPresentTotalEmp, 
+                      EightPresentTotalEmp, NinePresentTotalEmp, ElevenPresentTotalEmp,OtherPresentTotalEmp, OtherTotalday, Otherperday, Otherpersent
+ORDER BY Department, [Section]
+
+UPDATE OTSUM1 SET COMID=@COMID,month=@strmonth,year=@dtyear,wstatus=@wstatus
+
+end
+
+
+
+
+

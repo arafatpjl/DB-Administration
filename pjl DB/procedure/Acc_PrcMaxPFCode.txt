@@ -1,0 +1,89 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Acc_PrcMaxPFCode]    Script Date: 12/24/2018 09:30:33 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+
+ALTER  Proc [dbo].[Acc_PrcMaxPFCode] @intComID AS INTEGER
+As
+--Exec  PrcMaxPFCode
+Truncate Table Acc_TempPFCode
+Declare @MaxID Int
+Declare @MaxIDPJL Int
+Declare @MaxIDPAL Int
+Declare @MaxIDJ2L Int
+Declare @MaxIDUJL Int
+--Declare @MaxIDNZN Int
+--Select @MaXIDPJL=(Select Max(SubString(PFCode,3,7)) From DatabaseFile.Dbo.Acc_New_Ledger Where ComID=1 And LegStatus<>'O')
+--Select @MaXIDPAL=(Select Max(SubString(PFCode,3,7)) From DatabaseFilePAL.Dbo.Acc_New_Ledger Where ComID=3 And LegStatus<>'O')
+--Select @MaXIDJ2L=(Select Max(SubString(PFCode,3,7)) From DatabaseFileJ2L.Dbo.Acc_New_Ledger Where ComID=5 And LegStatus<>'O')
+--Select @MaXIDUJL=(Select Max(SubString(PFCode,3,7)) From DatabaseFileUJL.Dbo.Acc_New_Ledger Where ComID=7 And LegStatus<>'O')
+Select @MaxID=(Select MAX(CAST(SubString(PFCode,3,7) AS INTEGER)) From Acc_New_Ledger Where ComID= @intComID And LegStatus<>'O')
+	--If @MaxIDPJL>@MaxIDJ2L And @MaxIDPJL>@MaxIDUJL And @MaxIDPJL>@MaxIDPAL
+	--Begin
+	--Select @MaxID=@MaxIDPJL
+	--End
+	--Else If @MaxIDPAL>@MaxIDPJL And @MaxIDPAL>@MaxIDJ2L And @MaxIDPAL>@MaxIDUJL
+	--Begin
+	--Select @MaxID=@MaxIDPAL
+	--End
+	--Else If @MaxIDJ2L>@MaxIDPJL And @MaxIDJ2L>@MaxIDUJL And @MaxIDJ2L>@MaxIDPAL
+	--Begin
+	--Select @MaxID=@MaxIDJ2L
+	--End
+	--ELse If @MaxIDUJL>@MaxIDPJL And @MaxIDUJL>@MaxIDJ2L And @MaxIDUJL>@MaxIDPAL
+	--Begin
+	--Select @MaxID=@MaxIDUJL
+	--End
+Print @MaxID
+
+
+Declare @StrPFCode nvarchar(20)
+Declare @StrPFCodeTag nvarchar(20)
+
+  If @MaxID>0 And @MaxID<10
+    Begin
+      Select @StrPFCode='PF000' + Cast(@MaxID As nVarChar(10))
+      If (@MaxID+1)>9
+         Begin
+         Select @StrPFCodeTag='PF00' + Cast((@MaxID+1) As nVarChar(10))
+	 End
+      Else 
+	Begin
+        Select @StrPFCodeTag='PF000' + Cast((@MaxID+1)  As nVarChar(10))
+        End
+    End
+  Else If @MaxID>9 And @MaxID<100
+		If (@MaxID+1)=100
+		Begin
+     		Select @StrPFCode='PF00' + Cast(@MaxID As nVarChar(10))
+     		Select @StrPFCodeTag='PF0' + Cast((@MaxID+1) As nVarChar(10))
+		End
+	Else
+   		Begin
+     		Select @StrPFCode='PF00' + Cast(@MaxID As nVarChar(10))
+     		Select @StrPFCodeTag='PF00' + Cast((@MaxID+1) As nVarChar(10))
+  		 End
+
+  Else If @MaxID>99 And @MaxID<999
+   Begin
+     Select @StrPFCode='PF0' + Cast(@MaxID As nVarChar(10))
+     Select @StrPFCodeTag='PF0' + Cast((@MaxID+1) As nVarChar(10))
+   End 
+   Else
+   Begin	
+     Select @StrPFCode='PF' + Cast(@MaxID As nVarChar(10))
+     Select @StrPFCodeTag='PF' + Cast((@MaxID+1) As nVarChar(10))
+   End
+
+  If @MaxID Is Null
+    Begin
+      Select @StrPFCode='PF0000'
+      Select @StrPFCodeTag='PF0001'
+    End
+
+Print @StrPFCode
+Print @StrPFCodeTag
+Insert Into Acc_TempPFCode(LastIDText,LastIDTag) Values(@StrPFCode,@StrPFCodeTag)

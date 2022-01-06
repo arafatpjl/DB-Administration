@@ -1,0 +1,808 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_Emp_SAL_Summary]    Script Date: 12/24/2018 10:42:09 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[Prc_Emp_SAL_Summary] @ComID Int,@Month VarChar(20),@Year Int,@Dept VarChar(50),@SubDept VarChar(50),@Wstatus VarChar(2),@ChkTbl Int,@ChkBank Int
+AS
+
+-- @Chktable 1=Orginal, 2 =112 Hrs, 3=56 Hrs, 4=Ot, 5=ExtraOT
+
+-- Exec Prc_Emp_SAL_Summary 7,'JUNE',2018,'','','W',21,0;
+
+-- Exec Prc_Emp_SAL_Summary 1,'APRIL',2018,'CUTTING','','W',2,2;
+
+Delete From Temp_Summary Where HostName=HOST_NAME()
+
+CREATE TABLE #Temp_Summary(
+	[Year] [nvarchar](4) NULL,
+	[Month] [nvarchar](10) NULL,
+	[DeptName] [nvarchar](100) NULL,
+	[SubDeptName] [nvarchar](100) NULL,
+	[TotalEmp] [int] NULL,
+	[TotalWorkDay] [real] NULL,
+	[TotalOTHours] [real] NULL,
+	[WEarned] [money] NOT NULL,
+	[OTAmount] [money] NOT NULL,
+	[FoodAmount] [money] NOT NULL,
+	[AttenBonus] [money] NOT NULL,
+	[OthersE] [money] NOT NULL,
+	[TotalAmount] [money] NOT NULL,
+	[TransportD] [money] NOT NULL,
+	[OthersD] [money] NULL,
+	[NetPayTK] [money] NOT NULL,
+	[OneT] [int] NULL,
+	[FiveH] [int] NULL,
+	[OneH] [int] NULL,
+	[Fifty] [int] NULL,
+	[Twenty] [int] NULL,
+	[Ten] [int] NULL,
+	[Five] [int] NULL,
+	[Two] [int] NULL,
+	[One] [int] NULL,
+	[ComName] [nvarchar](50) NULL,
+	[Address] [nvarchar](100) NULL,
+	[FoodAllow] [money] NOT NULL,
+	[Subs] [money] NULL,
+	[Cont] [money] NULL,
+	[Loan] [money] NULL,
+	[Interest] [money] NULL,
+	[SubSubDept] [nvarchar](50) NULL,
+	[AbsAmount] [money] NOT NULL,
+	[TotalAbsDays] [real] NULL,
+	[PIB_Days] [real] NOT NULL,
+	[PIB] [money] NOT NULL,
+	[FracPay] [money] NOT NULL,
+	[FracPayD] [money] NOT NULL,
+	[TransAllow] [money] NOT NULL,
+	[DinnerAllow] [money] NOT NULL,
+	[EmpWithoutStamp] [smallint] NOT NULL,
+	[NotPayD] [money] NOT NULL,
+	[TransDay] [real] NULL,
+	[TransPay] [money] NULL
+) ON [PRIMARY]
+
+
+--Select @RegID
+
+If @ChkTbl=1
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages_Combined A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages_Combined A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages_Combined A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages_Combined A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages_Combined A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A'
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages_Combined A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+EnD
+
+
+If @ChkTbl=2
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesN A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesN A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesN A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesN A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesN A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A'
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesN A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+EnD
+
+
+Else If @ChkTbl=3
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A'
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+
+End
+
+Else If @ChkTbl=4
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A'
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+
+End
+
+Else If @ChkTbl=5
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_Extra A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_Extra A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_Extra A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_Extra A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_Extra A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A'
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_Extra A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And A.EntryStatus='A' And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+End
+
+
+-- ****** Bonus Summary *******
+
+Else If @ChkTbl=11
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),NULL,NULL,0.00,
+       0.00,0.00,0.00,0.00,SUM(Isnull(A.Basic,0)),0.00,NULL,0.00,Sum((A.Basic-A.Stamp)/1000) OneT,Sum((A.Basic-A.Stamp)%1000/500) FiveH,Sum(((A.Basic-A.Stamp)%1000)%500/100) OneH,Sum((((A.Basic-A.Stamp)%1000)%500)%100/50) Fifty
+       ,Sum(((((A.Basic-A.Stamp)%1000)%500)%100)%50/20) Twenty,Sum((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20/10) Ten,Sum(((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10/5) Five
+       ,Sum((((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10)%5/2) Two,Sum(((((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10)%5)%2/1) One, C.Name, C.Address,
+       0.00, NULL, NULL, NULL, NULL, Case When @WStatus='W' Then 'Worker' When @WStatus='F' Then 'Staff' End + ' Bonus (Cash) ', 0.00, NULL, 0, 0.00, 0.00, SUM(FracPayD), 0.00,
+       0.00,0,0.00, NULL, NULL
+FROM Bonus_Entry A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Bonus_Entry A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),NULL,NULL,0.00,
+       0.00,0.00,0.00,0.00,SUM(Isnull(A.Basic,0)),0.00,NULL,0.00,Sum((A.Basic-A.Stamp)/1000) OneT,Sum((A.Basic-A.Stamp)%1000/500) FiveH,Sum(((A.Basic-A.Stamp)%1000)%500/100) OneH,Sum((((A.Basic-A.Stamp)%1000)%500)%100/50) Fifty
+       ,Sum(((((A.Basic-A.Stamp)%1000)%500)%100)%50/20) Twenty,Sum((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20/10) Ten,Sum(((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10/5) Five
+       ,Sum((((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10)%5/2) Two,Sum(((((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10)%5)%2/1) One, C.Name, C.Address,
+       0.00, NULL, NULL, NULL, NULL, Case When @WStatus='W' Then 'Worker' When @WStatus='F' Then 'Staff' End + ' Bonus (Bank) ', 0.00, NULL, 0, 0.00, 0.00, SUM(FracPayD), 0.00,
+       0.00,0,0.00, NULL, NULL
+FROM Bonus_Entry A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Bonus_Entry A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),NULL,NULL,0.00,
+       0.00,0.00,0.00,0.00,SUM(Isnull(A.Basic,0)),0.00,NULL,0.00,Sum((A.Basic-A.Stamp)/1000) OneT,Sum((A.Basic-A.Stamp)%1000/500) FiveH,Sum(((A.Basic-A.Stamp)%1000)%500/100) OneH,Sum((((A.Basic-A.Stamp)%1000)%500)%100/50) Fifty
+       ,Sum(((((A.Basic-A.Stamp)%1000)%500)%100)%50/20) Twenty,Sum((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20/10) Ten,Sum(((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10/5) Five
+       ,Sum((((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10)%5/2) Two,Sum(((((((((A.Basic-A.Stamp)%1000)%500)%100)%50)%20)%10)%5)%2/1) One, C.Name, C.Address,
+       0.00, NULL, NULL, NULL, NULL, Case When @WStatus='W' Then 'Worker' When @WStatus='F' Then 'Staff' End + ' Bonus (Cash & Bank) ', 0.00, NULL, 0, 0.00, 0.00, SUM(FracPayD), 0.00,
+       0.00,0,0.00, NULL, NULL
+FROM Bonus_Entry A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Bonus_Entry A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+End
+
+
+-- ****** End Bonus Summary *******
+
+
+-- ****** ML SALARY Summary *******
+
+Else If @ChkTbl=21
+Begin
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_Wages_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_Wages_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+EnD
+
+
+
+
+Else If @ChkTbl=22
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+EnD
+
+
+
+
+Else If @ChkTbl=23
+Begin
+
+If @ChkBank=0
+Begin
+
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_Extra_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_Extra_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Left Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'Y%' Or D.Empcode Is Null)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+Else If @ChkBank=1
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_Extra_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_Extra_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID Inner Join Emp_Account D ON A.RegID=D.RegID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0 AND (D.HeldUp Like 'N%' And Len(D.AccNo)>8)
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+
+End
+
+
+Else If @ChkBank=2
+
+Begin
+Insert  into #Temp_Summary
+SELECT A.Year,A.Month,B.Department,B.Section,COUNT(B.RegId),SUM(A.AttenDays),SUM(A.OTHours),SUM(A.WEarned),
+       SUM(A.OTPay),SUM(A.FoodPay),SUM(A.AttenBonus),SUM(A.OthersE),SUM(Isnull([WEarned],0)+IsNull([OTPay],0)+IsNUll(A.[FoodPay],0)+IsNull([FoodAllow],0)+IsNull([AttenBonus],0)+IsNULL([TransAllow],0)+IsNull([DinnerAllow],0)+IsNull([OthersE],0)+IsNull(A.[FracPay],0)+IsNull([AbsAmount],0)+IsNull([PIB],0)+IsNull([TransPay],0)),SUM(TransportD),SUM(OthersD),SUM(NetPayTK),SUM(OneT), SUM(FiveH), SUM(OneH), SUM(Fifty), SUM(Twenty), SUM(Ten), SUM(Five), SUM(Two), SUM(One), C.Name, C.Address,
+       SUM(FoodAllow), SUM(Subs), SUM(RatePay), SUM(Loan), SUM(Interest), '', SUM(AbsAmount), SUM(AbsentDay), SUM(PIB_Days), SUM(PIB), SUM(A.FracPay), SUM(FracPayD), SUM(TransAllow),
+       SUM(DinnerAllow),0,SUM(A.Basic), SUM(TransDay), SUM(TransPay)
+FROM Salary_And_WagesOT_Extra_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year
+GROUP BY A.Year,A.Month,B.Department,B.Section,C.Name, C.Address
+
+UPDATE A SET EmpWithoutStamp=B.EmpWithoutStamp
+From #Temp_Summary A INNER JOIN 
+(SELECT B.Department,B.Section,COUNT(B.RegId) AS EmpWithoutStamp
+FROM Salary_And_WagesOT_Extra_ML A INNER JOIN Employee_Information B ON A.RegID=B.RegId
+     INNER JOIN Company_Information C ON A.ComID=C.ID
+Where A.ComID=@ComID AND A.WStatus=@Wstatus AND A.MONTH=@Month AND A.Year=@Year And Stamp=0
+GROUP BY B.Department,B.Section) B ON A.DeptName=B.Department AND A.SubDeptName=B.Section
+
+End
+
+EnD
+
+
+
+
+
+
+-- ****** End ML SALARY Summary *******
+
+
+
+If LEN(@SubDept)>1
+Begin
+Delete From #Temp_Summary Where SubDeptName<>@SubDept --AND HostName=HOST_NAME()
+End
+Else If LEN(@Dept)>1
+Begin
+Delete From #Temp_Summary Where DeptName<>@Dept --AND HostName=HOST_NAME()
+End
+
+
+SELECT * FROM #Temp_Summary
+
+Delete From Temp_Summary Where HostName=HOST_NAME()
+
+Insert Into dbo.Temp_Summary
+Select *,HOST_NAME()
+From #Temp_Summary
+ORDER BY 3,4

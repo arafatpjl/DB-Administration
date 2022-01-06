@@ -1,0 +1,207 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[PrcPIB_Report_Daily]    Script Date: 01/06/2019 15:50:52 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[PrcPIB_Report_Daily]   @ComID int,@DailyDate date,@Line varchar(30),@Report_Type varchar(20),@IsSummary bit
+AS
+BEGIN
+
+--  exec PrcPIB_Report_Daily '1','21-APR-18','SEWING-11','Worker','false'
+	
+declare @Section varchar(50)	
+declare @IsSpecial varchar(50)
+declare @Wstatus TABLE (Id varchar(5))
+declare @Designation varchar(50)
+
+  
+  set @Section =null
+
+  if @Line=''
+		begin
+		set @Line=null;
+		end 
+
+ if @IsSummary=1
+		begin
+		set @Section=@Line;
+		set @Line=null;
+		end 
+
+
+
+  if @Report_Type='Worker' 
+	 BEGIN
+		set @IsSpecial='False'
+		INSERT INTO @Wstatus
+		SELECT id FROM (VALUES ('W')) AS tbl(id)
+		set @Designation=''
+	 end 
+ else if @Report_Type='Other' 
+	BEGIN
+		set @IsSpecial='False'	
+		INSERT INTO @Wstatus
+	    SELECT id FROM (VALUES ('F'),('J')) AS tbl(id)
+		set @Designation='Q.C.'
+	 end 
+ else if @Report_Type='Special'
+	BEGIN
+		set @IsSpecial='true'
+		INSERT INTO @Wstatus
+	    SELECT id FROM (VALUES ('W'),('F'),('J')) AS tbl(id)
+		set @Designation=''
+	 end 
+
+ 
+ 
+
+
+  declare @PMonth varchar(50)=DATENAME(month,(@DailyDate))
+  declare @PYear int=Year(@DailyDate)
+  declare @BeginingDate datetime
+ 
+     set @BeginingDate=@DailyDate;
+
+    select *  
+
+  into #ViewPIBALL_1
+    FROM ViewPIBALL A
+		  where  ComID=@ComID and  DailyDate=@DailyDate  and Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+		   and (Wstatus in (select id from @Wstatus) or Designation=@Designation) and IsSpecial=@IsSpecial ;
+
+
+  if @IsSummary=1
+  begin
+
+   set @BeginingDate='01-'+convert(varchar(3),datename(Month,@DailyDate))+'-'+convert(varchar(4),YEAR(@DailyDate))
+    
+  delete from #ViewPIBALL_1;
+
+  Insert into #ViewPIBALL_1
+  (ComID
+	  ,RegId
+      ,EmployeeCode
+      ,Name
+      ,JoiningDate
+      ,Department
+      ,Section
+      ,Designation
+	  ,DailyDate
+	  ,PIB_Days			
+	  ,Day_Lost_Time
+	  ,BuyerName
+	  , PF
+      ,StyleNo
+      ,StyleCatagory
+      ,Line
+	  ,WStatus
+  )
+SELECT distinct ComID
+	  ,RegId
+      ,EmployeeCode
+      ,Name
+      ,JoiningDate
+      ,Department
+      ,Section
+      ,Designation  
+	  ,@DailyDate  
+	  ,0
+	  ,0  
+	  ,''
+	  ,''
+      ,''
+      ,''
+      ,''
+      ,WStatus
+      FROM ViewPIBALL
+
+		  where ComID=@ComID and DailyDate  between @BeginingDate and @DailyDate   and  Section=COALESCE(@Section ,Section)
+		--   and (Wstatus in (select id from @Wstatus) or Designation=@Designation) and IsSpecial=@IsSpecial ;
+
+end
+
+
+--  exec PrcPIB_Report_Daily '18-APR-18','SEWING-01','Worker','True'
+
+
+
+  SELECT		 A.ComID	 
+			,A.RegId	
+			,A.EmployeeCode	
+			,JoiningDate
+			,Name	
+			,Section	
+			,Designation
+			,Wstatus
+			,convert(datetime,@DailyDate) as [DailyDate]
+			,line 
+			,IsSpecial			  
+			,PIB_Days			
+			,[Day_Lost_Time]
+			,(select sum(PIB_Days) from ViewPIBALL where  ComID=A.ComID and RegId=A.RegId and DailyDate between '01-'+convert(varchar(3),datename(Month,@DailyDate))+'-'+convert(varchar(4),YEAR(@DailyDate))  and @DailyDate) as TotalPIB
+			,(SELECT Efficiency FROM tblEmpEfficiencyDaily where  ComID=A.ComID and  RegId = A.RegId and DailyDate=@DailyDate )  as Efficiency
+			 			
+			,STUFF((SELECT distinct  ',' + CAST(Sub_Dept_Name.ShortName AS VARCHAR(15)) [text()]
+				 FROM ViewPIBALL  inner Join Sub_Dept_Name on Sub_Dept_Name.SubDeptName=Line
+				 WHERE RegId = A.RegId     and DailyDate between @BeginingDate and @DailyDate  and  Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+				 FOR XML PATH('')),1,1,'') as BonusLine
+
+			,STUFF((SELECT distinct  ',' + CAST(Sub_Dept_Name.ShortName AS VARCHAR(15)) [text()]
+			FROM ViewPIBALL  inner Join Sub_Dept_Name on  Sub_Dept_Name.SubDeptName=Line
+			WHERE ViewPIBALL.comid=@ComID and DailyDate between @BeginingDate and @DailyDate  and  Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+			FOR XML PATH('')),1,1,'') as BonusLineALL 
+			,BuyerName
+			,PF
+			,StyleNo
+			,StyleCatagory	
+			,TimeIn
+			,REPLACE(STUFF((SELECT distinct  ',' + CAST(BuyerName AS nVARCHAR(15)) [text()]
+			FROM ViewPIBALL  
+			WHERE ComID=@ComID and DailyDate between @BeginingDate and @DailyDate and  Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+			FOR XML PATH('')),1,1,''), '&amp;', '&')
+			 as BuyerNameALL
+
+			,STUFF((SELECT distinct  ',' + CAST(PF AS VARCHAR(15)) [text()]
+			FROM ViewPIBALL  
+			WHERE ComID=@ComID and DailyDate between @BeginingDate and @DailyDate and Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+			FOR XML PATH('')),1,1,'') as PFALL
+
+			,STUFF((SELECT distinct  ',' + CAST(StyleNo AS VARCHAR(15)) [text()]
+			FROM ViewPIBALL  
+			WHERE ComID=@ComID and DailyDate between @BeginingDate and @DailyDate and Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+			FOR XML PATH('')),1,1,'') as StyleNoALL
+
+			,STUFF((SELECT distinct  ',' + CAST(StyleCatagory AS VARCHAR(15)) [text()]
+			FROM ViewPIBALL  
+			WHERE ComID=@ComID and DailyDate between @BeginingDate and @DailyDate and Line=COALESCE(@Line ,Line) and Section=COALESCE(@Section ,Section)
+			FOR XML PATH('')),1,1,'') as StyleCatagoryALL
+
+			
+			,TimeOut	
+			,(SELECT LineTarget FROM tblPIBLineTarget where   CompID=@ComID and DailyDate=@DailyDate  and Line=@Line) as LineTarget
+			 ,(SELECT LineAchive FROM tblPIBLineTarget where   CompID=@ComID and DailyDate=@DailyDate  and Line=@Line) as LineAchive
+			 ,(SELECT PlanTarget FROM tblPIBLineTarget where   CompID=@ComID and DailyDate=@DailyDate  and Line=@Line) as PlanTarget
+			 ,(SELECT ActualHour FROM tblPIBLineTarget where   CompID=@ComID and DailyDate=@DailyDate  and Line=@Line) as ActualHour
+			  ,(SELECT LineRemarks FROM tblPIBLineTarget where   CompID=@ComID and DailyDate=@DailyDate  and Line=@Line) as LineRemarks
+			  
+			into #ViewPIBALL
+		  FROM #ViewPIBALL_1 A 
+		
+		 
+		 if @Report_Type='Worker'  and @IsSummary=0
+			 BEGIN
+				delete from #ViewPIBALL where Designation='Q.C.';
+			 end 
+			 
+
+		select *  from #ViewPIBALL;
+		
+		
+
+		   end
+
+
+

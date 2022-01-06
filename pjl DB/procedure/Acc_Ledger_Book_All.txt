@@ -1,0 +1,130 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Acc_Ledger_Book_All]    Script Date: 12/24/2018 09:29:00 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- EXEC Acc_Ledger_Book_All '01-JAN-2012','31-DEC-2012'
+
+ALTER PROC [dbo].[Acc_Ledger_Book_All] @FromDate DateTime, @ToDate DateTime
+AS
+
+---- Insert All Ledger Data into Acc_Temp_Ledger_Book_All ---
+
+DELETE FROM Acc_Temp_Ledger_Book_All
+
+INSERT INTO Acc_Temp_Ledger_Book_All(MainLegID,MainLedger,SubLegID,SubLedger,legID,legName,DrTK,CrTK,DrCr,vouchNo,vouchDate,vouchType,
+vouchDesc,debitTK,creditTK,OpenBalDT,OpenBalCT,OpenTotalDr,OpenTotalCr,RunBalTK,CloseBalTK,[Status],comName,[Address],BeginDate,EndDate)
+
+SELECT X.legID,X.legName,Y.SubLegID,Y.SubLedger,Y.legID,Y.legName,Y.DrTK,Y.CrTK,Y.DrCr,Y.vouchNo,Y.vouchDate,Y.vouchType,
+Y.vouchDesc,Y.debitTK,Y.creditTK,CASE WHEN X.contrName IN ('AS','EX') THEN X.OpenBalTK+(X.OpenTotalDr-X.OpenTotalCr) ELSE 0 END AS OpenBalDT,
+CASE WHEN X.contrName IN ('LI','IN') THEN X.OpenBalTK+(X.OpenTotalCr-X.OpenTotalDr) ELSE 0 END AS OpenBalCT,X.OpenTotalDr AS OpenTotalDr,X.OpenTotalCr AS OpenTotalCr,
+0 AS RunBalTK,X.BeforeBalTK+X.PeriodBalTK AS CloseBalTK,Y.[Status],Z.comName,Z.[Address],@FromDate AS BeginDate,@ToDate AS EndDate
+FROM (
+
+--- For Befor/Period/After Balance ---
+SELECT A.comID,A.legID,A.legName,A.contrName,A.OpenBalTK,A.OpenBalTK + A.ToDateBalTK AS ToDateBalTK,CASE WHEN BB.PeriodBalTK IS NULL THEN 0 ELSE BB.PeriodBalTK END AS PeriodBalTK,
+CASE WHEN D.BeforeBalTK IS NULL THEN 0 ELSE D.BeforeBalTK END AS BeforeBalTK,CASE WHEN D.OpenDrTK IS NULL THEN 0 ELSE D.OpenDrTK END AS OpenTotalDr,
+CASE WHEN D.OpenCrTK IS NULL THEN 0 ELSE D.OpenCrTK END AS OpenTotalCr,CASE WHEN E.AfterBalTK IS NULL THEN 0 ELSE E.AfterBalTK END AS AfterBalTK
+FROM dbo.Acc_New_Ledger AS A LEFT JOIN (
+
+--- Period Balance ---
+SELECT legID,CASE WHEN M.contrName IN ('AS','EX') THEN SUM(M.debitTK) - SUM(M.creditTK) ELSE SUM(M.creditTK) - SUM(M.debitTK) END AS PeriodBalTK
+FROM (SELECT A.vouchNo,B.legID,B.debitTK,B.creditTK,C.contrName FROM dbo.Acc_Vouch_Entry_Main AS A INNER JOIN dbo.Acc_Vouch_Entry_Sub AS B ON A.comID = B.comID AND A.vouchNo = B.vouchNo
+INNER JOIN dbo.Acc_New_Ledger AS C ON B.comID = C.comID AND B.legID = C.legID
+WHERE (A.vouchDate BETWEEN @FromDate AND @ToDate)) AS M GROUP BY legID,contrName
+-----------------------
+) AS BB ON A.legID = BB.legID
+LEFT JOIN (
+
+--- Before From Date Balance ---
+SELECT legID,CASE WHEN O.contrName IN ('AS') THEN SUM(O.debitTK) - SUM(O.creditTK) WHEN O.contrName IN ('LI') THEN SUM(O.creditTK) - SUM(O.debitTK) ELSE 0 END AS BeforeBalTK,
+CASE WHEN O.contrName IN ('AS','LI') THEN SUM(O.debitTK) ELSE 0 END AS OpenDrTK,CASE WHEN O.contrName IN ('AS','LI') THEN SUM(O.creditTK) ELSE 0 END AS OpenCrTK
+FROM (SELECT A.vouchNo,B.legID,B.debitTK,B.creditTK,C.contrName FROM dbo.Acc_Vouch_Entry_Main AS A INNER JOIN dbo.Acc_Vouch_Entry_Sub AS B ON A.comID = B.comID
+AND A.vouchNo = B.vouchNo INNER JOIN dbo.Acc_New_Ledger AS C ON B.comID = C.comID AND B.legID = C.legID WHERE (A.vouchDate < @FromDate)) AS O GROUP BY legID,contrName
+----------------------
+) AS D ON A.legID = D.legID
+LEFT JOIN (
+
+--- After ToDate Balance ---
+SELECT legID,CASE WHEN P.contrName IN ('AS') THEN SUM(P.debitTK) - SUM(P.creditTK) WHEN P.contrName IN ('LI') THEN SUM(P.creditTK) - SUM(P.debitTK) ELSE 0 END AS AfterBalTK
+FROM (SELECT A.vouchNo,B.legID,B.debitTK,B.creditTK,C.contrName FROM dbo.Acc_Vouch_Entry_Main AS A INNER JOIN dbo.Acc_Vouch_Entry_Sub AS B ON A.comID = B.comID AND A.vouchNo = B.vouchNo
+INNER JOIN dbo.Acc_New_Ledger AS C ON B.comID = C.comID AND B.legID = C.legID WHERE (A.vouchDate > @ToDate)) AS P GROUP BY legID,contrName
+----------------------------
+) AS E ON A.legID = E.legID
+
+-- WHERE A.comID = 1 AND A.legID = 'C-PF7737'
+---------------------------------------------
+
+) X INNER JOIN (
+
+--- For Ledger Details ---
+
+SELECT DISTINCT A.LegID AS MainLegID,A.legName AS MainLedger,CASE WHEN D.legName IS NULL THEN B.legID ELSE NULL END AS SubLegID,--B.legID AS SubLegID,
+CASE WHEN D.legName IS NULL THEN B.legName ELSE '(AS PER DETAILS)' END AS SubLedger,
+D.legID AS legID,D.legName AS legName,D.debitTK AS DrTK,D.creditTK AS CrTK,D.DrCr,A.vouchNo,A.VouchDate,A.VouchType,A.vouchDesc,A.DrCr AS [Status],A.debitTK,A.creditTK --,D.legID,D.legName,D.vouchNo
+FROM (SELECT * FROM Acc_View_Ledger_Voucher WHERE vouchDate BETWEEN @FromDate AND @ToDate --AND legID = 'C-PF7737'
+) AS A INNER JOIN Acc_Vouch_Entry_Sub AS C ON A.VouchNo = C.VouchNo 
+INNER JOIN Acc_New_Ledger AS B ON C.ComID = B.ComID AND C.LegID = B.LegID
+
+LEFT JOIN (
+
+SELECT B.legID,C.legName,B.vouchNo,B.debitTK,B.creditTK,CASE WHEN B.debitTK <> 0 THEN 'Dr' ELSE 'Cr' END AS DrCr,
+A.legID AS MainLedger FROM (SELECT A.comID,A.legID,A.vouchNo,A.vouchDate FROM (
+SELECT A.comID,A.legID,A.LegName,A.vouchNo,A.vouchDate,B.vouchType,C.debitTK,C.creditTK,
+COUNT(CASE WHEN C.debitTK <> 0 THEN 'DR' ELSE '' END) AS TotalDR,COUNT(CASE WHEN C.creditTK <> 0 THEN 'CR' ELSE '' END) AS TotalCR
+FROM (SELECT comID,vouchNo,vouchDate,legID,legName,debitTK,creditTK,DrCr FROM Acc_View_Ledger_Voucher
+WHERE vouchDate BETWEEN @FromDate AND @ToDate --AND legID = 'C-PF7737'
+) AS A INNER JOIN Acc_Vouch_Entry_Main AS B ON A.vouchNo = B.vouchNo AND A.vouchDate = B.vouchDate AND A.comID = B.comID
+INNER JOIN Acc_Vouch_Entry_Sub AS C ON B.vouchNo = C.vouchNo AND B.comID = C.comID
+GROUP BY A.comID,A.legID,A.LegName,A.vouchNo,A.vouchDate,B.vouchType,C.debitTK,C.creditTK
+) A WHERE A.TotalDR > 1 OR A.TotalCR > 1
+) A INNER JOIN Acc_Vouch_Entry_Sub B ON A.vouchNo = B.vouchNo AND A.comID = B.comID
+INNER JOIN Acc_New_Ledger C ON B.legID = C.legID AND B.comID = C.comID
+WHERE B.legID <> A.legID
+
+) D ON A.LegID = D.MainLedger AND A.vouchNo = D.vouchNo
+
+WHERE C.LegID <> A.LegID --AND C.ComID = 1 
+AND (CASE WHEN A.debitTK <> 0 THEN C.creditTK ELSE C.debitTK END) <> 0
+
+UNION ALL
+
+---- IF Transection not found ---
+SELECT A.legID,A.legName,NULL AS SubLegID,'Transaction Not Found' AS SubLedger,NULL AS LegID,NULL AS legName,NULL AS DrTK,NULL AS CrTK,NULL AS DrCr,'Empty' AS vouchNo,
+NULL AS vouchDate,NULL AS vouchType,NULL AS vouchDesc,CASE WHEN A.contrName IN ('AS','EX') THEN 'DR' ELSE 'CR' END AS [Status],0 AS debitTK,0 AS creditTK
+FROM Acc_New_Ledger A LEFT JOIN (
+SELECT A.comID,A.vouchDate,A.vouchNo,B.legID FROM Acc_Vouch_Entry_Main A INNER JOIN Acc_Vouch_Entry_Sub B
+ON A.comID = B.comID AND A.vouchNo = B.vouchNo
+WHERE A.vouchDate BETWEEN @FromDate AND @ToDate
+) B ON A.comID = B.comID AND A.legID = B.legID
+WHERE B.legID IS NULL --AND B.legID = 'C-PF7737'
+
+----------------------------------------------
+
+) Y ON X.legID = Y.MainLegID
+
+INNER JOIN Acc_Company_Information Z ON X.comID = Z.comID 
+
+ORDER BY X.legID,Y.vouchDate,Y.vouchNo
+
+----------------------------------------------
+
+UPDATE A SET A.SLNo = B.SLNo FROM Acc_Temp_Ledger_Book_All A INNER JOIN Acc_Vouch_Entry_Sub B ON A.SubLegID = B.LegID AND A.VouchNo = B.VouchNo
+UPDATE A SET A.SLNo = B.SLNo FROM Acc_Temp_Ledger_Book_All A INNER JOIN Acc_Vouch_Entry_Sub B ON A.LegID = B.LegID AND A.VouchNo = B.VouchNo
+
+UPDATE A SET A.MainLedger = A.MainLedger + ' (' + B.EmpCode + ')' FROM Acc_Temp_Ledger_Book_All A INNER JOIN Acc_New_Ledger B
+ON A.MainLegID = B.LegID WHERE B.LegStatus <> 'O'
+
+UPDATE A SET A.SubLedger = A.SubLedger + ' (' + B.EmpCode + ')' FROM Acc_Temp_Ledger_Book_All A INNER JOIN Acc_New_Ledger B
+ON A.SubLegID = B.LegID WHERE B.LegStatus <> 'O'
+
+----SELECT * FROM Acc_Temp_Ledger_Book_All
+-------DELETE FROM Acc_Temp_Ledger_Book_All 
+----WHERE debitTK = 0 AND creditTK = 0 AND OpenBalDT = 0 AND OpenBalCT = 0 AND CloseBalTK = 0
+
+
+
+

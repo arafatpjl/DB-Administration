@@ -1,0 +1,102 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlter_viewLeaveRegisterall]    Script Date: 12/24/2018 10:54:42 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER Proc [dbo].[prcAlter_viewLeaveRegisterall] @ComID tinyint, @Year smallint, @Month Varchar(15), @EmpStatus Varchar(15)
+as
+if @EmpStatus = 'WORKER'
+Begin
+	Exec('
+	Alter view dbo.viewLeaveRegisterall
+	as 
+		
+
+SELECT     dbo.Employee_Information.ComID, dbo.Emp_Leave_Entry.EmpCode, dbo.Emp_Leave_Entry.LType, dbo.Emp_Leave_Entry.LDays, 
+                      dbo.Emp_Leave_Entry.FrDate, dbo.Emp_Leave_Entry.ToDate, dbo.Emp_Leave_Entry.SalPerID, dbo.Company_Information.Name, 
+                      dbo.Employee_Information.Name AS empname, dbo.Employee_Information.JoiningDate, dbo.Employee_Information.Department, 
+                      dbo.Employee_Information.[Section], dbo.Employee_Information.Designation, UPPER(DATENAME(Month, dbo.Emp_Leave_Entry.FrDate)) AS [Month], 
+                      DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) AS year
+FROM         dbo.Emp_Leave_Entry INNER JOIN
+                      dbo.Employee_Information ON dbo.Emp_Leave_Entry.RegID = dbo.Employee_Information.RegID INNER JOIN
+                      dbo.Company_Information ON dbo.Employee_Information.ComID = dbo.Company_Information.ID 
+                      
+WHERE     (dbo.Emp_Leave_Entry.ComID = '+ @ComID +') AND (DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) = '+ @Year +') AND (UPPER(DATENAME(Month, 
+                      dbo.Emp_Leave_Entry.FrDate)) =  '''+ @Month +''') AND (dbo.Employee_Information.WStatus =''W'' AND dbo.Emp_Leave_Entry.LType NOT IN(''NP'',''NW'') )
+
+	')
+End
+
+else if @EmpStatus = 'STAFF'
+Begin
+	Exec('
+	Alter view dbo.viewLeaveRegisterall
+	as 
+		
+
+SELECT     dbo.Employee_Information.ComID, dbo.Emp_Leave_Entry.EmpCode, dbo.Emp_Leave_Entry.LType, dbo.Emp_Leave_Entry.LDays, 
+                      dbo.Emp_Leave_Entry.FrDate, dbo.Emp_Leave_Entry.ToDate, dbo.Emp_Leave_Entry.SalPerID, dbo.Company_Information.Name, 
+                      dbo.Employee_Information.Name AS empname, dbo.Employee_Information.JoiningDate, dbo.Employee_Information.Department, 
+                      dbo.Employee_Information.[Section], dbo.Employee_Information.Designation, UPPER(DATENAME(Month, dbo.Emp_Leave_Entry.FrDate)) AS [Month], 
+                      DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) AS year
+FROM         dbo.Emp_Leave_Entry INNER JOIN
+                      dbo.Employee_Information ON dbo.Emp_Leave_Entry.RegID = dbo.Employee_Information.RegID INNER JOIN
+                      dbo.Company_Information ON dbo.Employee_Information.ComID = dbo.Company_Information.ID 
+                      
+WHERE     (dbo.Emp_Leave_Entry.ComID = '+ @ComID +') AND (DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) = '+ @Year +') AND (UPPER(DATENAME(Month, 
+                      dbo.Emp_Leave_Entry.FrDate)) =  '''+ @Month +''') AND (dbo.Employee_Information.WStatus =''F'' AND dbo.Emp_Leave_Entry.LType NOT IN(''NP'',''NW'') )
+
+	')
+End
+
+else if @EmpStatus = 'JUNIOR'
+Begin
+	Exec('
+	Alter view dbo.viewLeaveRegisterall
+	as 
+		
+
+SELECT     dbo.Employee_Information.ComID, dbo.Emp_Leave_Entry.EmpCode, dbo.Emp_Leave_Entry.LType, dbo.Emp_Leave_Entry.LDays, 
+                      dbo.Emp_Leave_Entry.FrDate, dbo.Emp_Leave_Entry.ToDate, dbo.Emp_Leave_Entry.SalPerID, dbo.Company_Information.Name, 
+                      dbo.Employee_Information.Name AS empname, dbo.Employee_Information.JoiningDate, dbo.Employee_Information.Department, 
+                      dbo.Employee_Information.[Section], dbo.Employee_Information.Designation, UPPER(DATENAME(Month, dbo.Emp_Leave_Entry.FrDate)) AS [Month], 
+                      DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) AS year
+FROM         dbo.Emp_Leave_Entry INNER JOIN
+                      dbo.Employee_Information ON dbo.Emp_Leave_Entry.RegID = dbo.Employee_Information.RegID INNER JOIN
+                      dbo.Company_Information ON dbo.Employee_Information.ComID = dbo.Company_Information.ID
+                      
+WHERE     (dbo.Emp_Leave_Entry.ComID = '+ @ComID +') AND (DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) = '+ @Year +') AND (UPPER(DATENAME(Month, 
+                      dbo.Emp_Leave_Entry.FrDate)) =  '''+ @Month +''') AND (dbo.Employee_Information.WStatus =''J'' AND dbo.Emp_Leave_Entry.LType NOT IN(''NP'',''NW'') )
+
+	')
+End
+
+else if @EmpStatus = 'SENIOR'
+Begin
+	Exec('
+	Alter view dbo.viewLeaveRegisterall
+	as 
+		
+
+SELECT     dbo.Employee_Information.ComID, dbo.Emp_Leave_Entry.EmpCode, dbo.Emp_Leave_Entry.LType, dbo.Emp_Leave_Entry.LDays, 
+                      dbo.Emp_Leave_Entry.FrDate, dbo.Emp_Leave_Entry.ToDate, dbo.Emp_Leave_Entry.SalPerID, dbo.Company_Information.Name, 
+                      dbo.Employee_Information.Name AS empname, dbo.Employee_Information.JoiningDate, dbo.Employee_Information.Department, 
+                      dbo.Employee_Information.[Section], dbo.Employee_Information.Designation, UPPER(DATENAME(Month, dbo.Emp_Leave_Entry.FrDate)) AS [Month], 
+                      DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) AS year
+FROM         dbo.Emp_Leave_Entry INNER JOIN
+                      dbo.Employee_Information ON dbo.Emp_Leave_Entry.RegID = dbo.Employee_Information.RegID INNER JOIN
+                      dbo.Company_Information ON dbo.Employee_Information.ComID = dbo.Company_Information.ID
+                      
+WHERE     (dbo.Emp_Leave_Entry.ComID = '+ @ComID +') AND (DATEPART(YYYY, dbo.Emp_Leave_Entry.FrDate) = '+ @Year +') AND (UPPER(DATENAME(Month, 
+                      dbo.Emp_Leave_Entry.FrDate)) =  '''+ @Month +''') AND (dbo.Employee_Information.WStatus =''S'' AND dbo.Emp_Leave_Entry.LType NOT IN(''NP'',''NW'') )
+
+	')
+End
+
+
+
+
+

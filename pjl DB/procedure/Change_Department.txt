@@ -1,0 +1,66 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Change_Department]    Script Date: 12/24/2018 09:31:37 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+--===========Department Update==========----
+ALTER PROC [dbo].[Change_Department] @NEWDEPT nvarchar(50), @COMID int, @OLDDEPT nvarchar(50) as
+UPDATE Sub_Dept_Name SET DeptName=''+ @NEWDEPT +'' WHERE ComID=''+@COMID+'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Dept_Name SET DeptName=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Employee_Information SET Department=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +'' AND Department=''+ @OLDDEPT +''
+
+UPDATE Salary_And_Wages SET DeptName=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Salary_And_WagesN SET DeptName=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Salary_And_WagesOT SET DeptName=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE OverTime_Entry SET DeptName=''+ @NEWDEPT+'' WHERE ComID=''+@COMID+'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Bonus_Entry SET DeptName=''+ @NEWDEPT+'' WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Emp_Pro_Fund SET DeptName=''+ @NEWDEPT+'' WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Emp_Absent_Entry SET DeptName=''+ @NEWDEPT+''WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Left_Absent_Payment SET DeptName=''+ @NEWDEPT+''WHERE ComID=''+@COMID+'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Left_Absent_PaymentOT  SET DeptName=''+ @NEWDEPT+''WHERE ComID=''+@COMID+'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Mat_Leave_Benifit SET DeptName=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Maternity_Leave_Main SET Department=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND Department=''+ @OLDDEPT +''
+
+UPDATE Pay_Advice_Officer SET Dept=''+ @NEWDEPT+''WHERE ComID=''+ @COMID +'' AND Dept=''+ @OLDDEPT +''
+        
+UPDATE Emp_Monthly_Attend SET DeptName=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Emp_Monthly_AttendN SET DeptName=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Emp_Monthly_AttendOT SET DeptName=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Emp_Monthly_Extra_Day SET DeptName=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND DeptName=''+ @OLDDEPT +''
+        
+UPDATE Emp_EL_Payment SET Dept=''+ @NEWDEPT +''WHERE ComID=''+ @COMID +'' AND Dept=''+ @OLDDEPT +''
+
+
+UPDATE Acc_New_Ledger SET Department=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND Department=''+ @OLDDEPT +''
+
+UPDATE Acc_Salary_And_Wages SET DeptName=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND DeptName=''+ @OLDDEPT +''
+
+UPDATE Acc_Employee_Information SET Department=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND Department=''+ @OLDDEPT +''
+
+UPDATE Acc_Final_Settlement SET Department=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND Department=''+ @OLDDEPT +''
+	
+	--UPDATE Emp_EL_Payment_2008 SET Dept=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND DeptName=''+ @OLDDEPT +''	
+UPDATE Emp_EL_Payment_DelEdit SET Dept=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND Dept=''+ @OLDDEPT +''	
+ 	
+UPDATE Emp_Promotion_History SET Dept=''+ @NEWDEPT +'' WHERE ComID=''+ @COMID +''AND Dept=''+ @OLDDEPT +''	
+ 	
+UPDATE Employee_History SET Department=''+ @NEWDEPT +'' WHERE ComPID=''+ @COMID +''AND Department=''+ @OLDDEPT +''	
+	
+UPDATE Rptabs SET Dept=''+ @NEWDEPT +'' WHERE  Dept=''+ @OLDDEPT +''

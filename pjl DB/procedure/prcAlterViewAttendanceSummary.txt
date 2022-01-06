@@ -1,0 +1,80 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlterViewAttendanceSummary]    Script Date: 01/06/2019 10:54:20 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcAlterViewAttendanceSummary] @ComId tinyInt, @Department varchar(25),  @Section Varchar(25), @FromDate smallDateTime, @ToDate smallDateTime, @OldData tinyInt
+As 
+
+--	Select * from ViewAttendanceSummary order By Department, Section, DailyDate
+--	prcAlterViewAttendanceSummary 1, '', '', '01-AUG-2007', '01-AUG-2007', 0
+--	prcAlterViewAttendanceSummary 1, 'SEWING', '', '01-AUG-2007', '01-AUG-2007', 0
+--	prcAlterViewAttendanceSummary 1, 'SEWING', '', '01-AUG-2007', '01-AUG-2007', 0
+--	prcAlterViewAttendanceSummary 1, 'SEWING', 'LINE # ST-01', '01-Jul-2007', '31-Jul-2007', 0
+
+IF @Department = '' and @Section = ''
+BEGIN
+	Exec 
+	('
+	Alter View ViewAttendanceSummary 
+	As 
+		Select A.ComID, C.Name AS ComName, C.Address AS ComAddress, B.Department, B.Section, A.DailyDate, 
+			CASE A.DayStatus
+				When ''R'' then Sum(DatePart(hh, A.DailyHrs) + ROUND((DatePart(n, A.DailyHrs)/60.0), 2)) - SUM(DatePart(hh, A.ValidOT) + ROUND((DatePart(n, A.ValidOT)/60.0), 2)) 
+				Else Sum(DatePart(hh, A.DailyHrs) + ROUND((DatePart(n, A.DailyHrs)/60.0), 2))
+			END AS DailyHrs,
+			SUM(DatePart(hh, A.ValidOT) + ROUND((DatePart(n, A.ValidOT)/60.0), 2) + DatePart(hh, A.RestOT) + ROUND((DatePart(n, A.RestOT)/60.0), 2) + DatePart(hh, A.ExtraOT) + ROUND((DatePart(n, A.ExtraOT)/60.0), 2)) AS OTHrs
+
+		from Emp_Daily_Attendance AS A
+		Inner Join Employee_Information AS B On A.ComId = B.Comid and A.EmpCode = B.EmployeeCode
+		Inner Join Company_Information AS C On C.Id = A.ComId And C.Id = B.ComId
+
+		Where ((A.comid = '+ @ComId +') 
+		and (A.DailyDate Between '''+ @FromDate +''' and  '''+ @ToDate +''') AND (B.WStatus = ''W'') and (Left(B.EmployeeCode, 3) <> ''STF'') AND (Left(B.EmployeeCode, 2) <> ''OF''))
+		Group By A.ComID, C.Name, C.Address, B.Department, B.Section, A.DailyDate, A.DayStatus
+	')
+END
+Else IF @Section = ''
+BEGIN
+	Exec 
+	('
+	Alter View ViewAttendanceSummary 
+	As 
+		Select A.ComID, C.Name AS ComName, C.Address AS ComAddress, B.Department, B.Section, 
+			A.DailyDate, Sum(DatePart(hh, A.DailyHrs) + ROUND((DatePart(n, A.DailyHrs)/60.0), 2)) - SUM(DatePart(hh, A.ValidOT) + ROUND((DatePart(n, A.ValidOT)/60.0), 2)) AS DailyHrs,
+			SUM(DatePart(hh, A.ValidOT) + ROUND((DatePart(n, A.ValidOT)/60.0), 2) + DatePart(hh, A.RestOT) + ROUND((DatePart(n, A.RestOT)/60.0), 2) + DatePart(hh, A.ExtraOT) + ROUND((DatePart(n, A.ExtraOT)/60.0), 2)) AS OTHrs
+
+		from Emp_Daily_Attendance AS A
+		Inner Join Employee_Information AS B On A.ComId = B.Comid and A.EmpCode = B.EmployeeCode
+		Inner Join Company_Information AS C On C.Id = A.ComId And C.Id = B.ComId
+
+		Where ((A.comid = '+ @ComId +') and (B.Department = '''+ @Department +''') 
+		and (A.DailyDate Between '''+ @FromDate +''' and  '''+ @ToDate +''') AND (B.WStatus = ''W'') and (Left(B.EmployeeCode, 3) <> ''STF'') AND (Left(B.EmployeeCode, 2) <> ''OF''))
+		Group By A.ComID, C.Name, C.Address, B.Department, B.Section, A.DailyDate
+	')
+END
+Else
+BEGIN
+	Exec 
+	('
+	Alter View ViewAttendanceSummary 
+	As 
+		Select A.ComID, C.Name AS ComName, C.Address AS ComAddress, B.Department, B.Section, A.DailyDate, 
+			CASE A.DayStatus
+				When ''R'' then Sum(DatePart(hh, A.DailyHrs) + ROUND((DatePart(n, A.DailyHrs)/60.0), 2)) - SUM(DatePart(hh, A.ValidOT) + ROUND((DatePart(n, A.ValidOT)/60.0), 2)) 
+				Else Sum(DatePart(hh, A.DailyHrs) + ROUND((DatePart(n, A.DailyHrs)/60.0), 2))
+			END AS DailyHrs,
+			SUM(DatePart(hh, A.ValidOT) + ROUND((DatePart(n, A.ValidOT)/60.0), 2) + DatePart(hh, A.RestOT) + ROUND((DatePart(n, A.RestOT)/60.0), 2) + DatePart(hh, A.ExtraOT) + ROUND((DatePart(n, A.ExtraOT)/60.0), 2)) AS OTHrs
+
+		from Emp_Daily_Attendance AS A
+		Inner Join Employee_Information AS B On A.ComId = B.Comid and A.EmpCode = B.EmployeeCode
+		Inner Join Company_Information AS C On C.Id = A.ComId And C.Id = B.ComId
+
+		Where ((A.comid = '+ @ComId +') and (B.Department = '''+ @Department +''') and (B.Section = '''+ @Section +''') 
+		and (A.DailyDate Between '''+ @FromDate +''' and  '''+ @ToDate +''') AND (B.WStatus = ''W'') and (Left(B.EmployeeCode, 3) <> ''STF'' OR Left(B.EmployeeCode, 2) <> ''OF''))
+		Group By A.ComID, C.Name, C.Address, B.Department, B.Section, A.DailyDate, A.DayStatus
+	')
+END
+

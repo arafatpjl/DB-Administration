@@ -1,0 +1,91 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlterviewEmployeeInformation]    Script Date: 01/06/2019 10:55:05 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[prcAlterviewEmployeeInformation] @ComId tinyInt, @Department varchar(25), @Section Varchar(25), @Date smallDateTime, @WStatus char(1), @MLeft tinyInt
+As 
+--	Select * from viewEmployeeInformation ORDER BY EMPLOYEECODE
+--	prcAlterviewEmployeeInformation 1, 'FINISHING', 'FINISHING (01)', '01-APR-2007', 'W', 0
+--	prcAlterviewEmployeeInformation 1, 'JR. MGT-A', '', '01-Jul-2007', 'J', 0
+if @Section <> '' 
+Begin
+	Exec ('Alter View viewEmployeeInformation
+	as
+		SELECT B.ID AS comid, B.Name AS ComName, B.Address AS ComAddress, 
+			A.Department, A.Section, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmployeeName, A.Designation, 
+			A.JoiningDate, ltrim(rtrim(A.FathersName)) AS FathersName, ltrim(rtrim(A.HusbandName)) AS HusbandName, 
+			A.MothersName, A.District, A.Religion, A.BloodGroup, A.Sex, A.BusStop, A.EmpAttId, A.BepzaID, 
+			A.BusAvail, A.AttOff, A.BirthDate, A.LeftDate, A.MLeave, A.MLeft, A.WStatus, 
+			CASE 
+				When A.WStatus = ''W'' Then 1
+				When A.WStatus = ''F'' Then 2
+				When A.WStatus = ''J'' Then 3
+				When A.WStatus = ''S'' Then 4
+			END AS EmployeeStatus,
+			CASE 
+				When ((DateDiff("Month", A.JoiningDate, '''+ @Date +''') )/ 12) = 0 then
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) % 12) as varchar(2)) + '' Month(s)'' 
+				When ((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) % 12) > 0 then
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) / 12) as varchar(3)) + '' Year(s)  & '' +
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) % 12) as varchar(2)) + '' Month(s)'' 
+				else
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) / 12) as varchar(3)) + '' Year(s)'' 
+			END AS ServiceLength,
+
+			Cast(((DateDiff("Year", A.BirthDate, '''+ @Date +''')  ) ) as varchar(2)) + '' Years '' AS Age,
+			A.ShiftId, C.ShiftName, A.EmpLVID, D.EmpEL, D.EmpCL, D.EmpSL, D.EmpML,
+			Cast('''+ @Date +''' AS smallDateTime) AS ASONDATE
+
+		FROM Employee_Information AS A
+		INNER JOIN Company_Information  AS B ON B.ID = A.ComID
+		Inner Join Emp_General_Shift AS C on A.ShiftId = C.ShiftId
+		Inner Join Emp_General_Leave AS D On A.EmpLVId = D.EmpLVID
+
+		Where A.Comid = '+ @ComId +' and A.Department = '''+ @Department +''' 
+		and A.Section = '''+ @Section +''' and JoiningDate < '''+ @Date + ''' And Wstatus = ''' + @WStatus +''' AND A.MLeft = '+ @MLeft +'
+	')
+End
+Else
+Begin
+
+	Exec ('Alter View viewEmployeeInformation
+	as
+		SELECT B.ID AS comid, B.Name AS ComName, B.Address AS ComAddress, 
+			A.Department, A.Section, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmployeeName, A.Designation, 
+			A.JoiningDate, ltrim(rtrim(A.FathersName)) AS FathersName, ltrim(rtrim(A.HusbandName)) AS HusbandName, 
+			A.MothersName, A.District, A.Religion, A.BloodGroup, A.Sex, A.BusStop, A.EmpAttId, A.BepzaID, 
+			A.BusAvail, A.AttOff, A.BirthDate, A.LeftDate, A.MLeave, A.MLeft, A.WStatus, 
+			CASE 
+				When A.WStatus = ''W'' Then 1
+				When A.WStatus = ''F'' Then 2
+				When A.WStatus = ''J'' Then 3
+				When A.WStatus = ''S'' Then 4
+			END AS EmployeeStatus,
+			CASE 
+				When ((DateDiff("Month", A.JoiningDate, '''+ @Date +''') )/ 12) = 0 then
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''') ) % 12) as varchar(2)) + '' Month(s)'' 
+				When ((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) % 12) > 0 then
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) / 12) as varchar(3)) + '' Year(s)  & '' +
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''')) % 12) as varchar(2)) + '' Month(s)'' 
+				else
+					Cast(((DateDiff("Month", A.JoiningDate, '''+ @Date +''') ) / 12) as varchar(3)) + '' Year(s)'' 
+			END AS ServiceLength,
+
+			Cast(((DateDiff("Year", A.BirthDate, '''+ @Date +''')  ) ) as varchar(2)) + '' Years '' AS Age,
+			A.ShiftId, C.ShiftName, A.EmpLVID, D.EmpEL, D.EmpCL, D.EmpSL, D.EmpML,
+			Cast('''+ @Date +''' AS smallDateTime) AS ASONDATE
+
+		FROM Employee_Information AS A
+		INNER JOIN Company_Information  AS B ON B.ID = A.ComID
+		Inner Join Emp_General_Shift AS C on A.ShiftId = C.ShiftId
+		Inner Join Emp_General_Leave AS D On A.EmpLVId = D.EmpLVID
+
+		Where A.Comid = '+ @ComId +' and A.Department = '''+ @Department +''' 
+		and JoiningDate < '''+ @Date + ''' And Wstatus = ''' + @WStatus +''' AND A.MLeft = '+ @MLeft +'
+	')
+End
+
+

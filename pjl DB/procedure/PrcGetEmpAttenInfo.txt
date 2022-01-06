@@ -1,0 +1,100 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[PrcGetEmpAttenInfo]    Script Date: 01/06/2019 13:27:37 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+
+--	exec [PrcGetEmpAttenInfo] 1,'4',2018
+ 
+ALTER proc [dbo].[PrcGetEmpAttenInfo] 
+@Comid tinyint, 
+@MonthName int, 
+@Year int
+as
+
+
+select 
+RegID
+,EmployeeCode 
+,cast('0' as [int]) as TotalDay
+,cast('0' as [int]) as Holiday
+,cast('0' as [int])  as  [WorkDay]
+,cast('0' as [int])  as  TotalAtten
+,cast('0' as [int])  as  LeaveDay
+,cast('0' as [int])  as  Present
+,cast('0' as [int])  as  Absent
+,cast('0' as varchar(5))  as  [Status]
+,WStatus 
+
+into #Employee_Information
+from  Employee_Information 
+where   ComID=@Comid and Mleft=0 and Mleave=0 and WStatus in ('W','F') 
+order by EmployeeCode
+
+
+Update #Employee_Information
+set TotalDay=( select COUNT(*)  from [Daily_Process_Status]where  Month(prDate)=@MonthName and Year(prDate)=@Year)
+,Holiday=( select COUNT(Holiday)  from [Daily_Process_Status]where  Month(prDate)=@MonthName and Year(prDate)=@Year and Holiday=1)
+
+Update #Employee_Information
+set [WorkDay]=TotalDay-Holiday
+
+
+Update #Employee_Information
+set TotalAtten=( select COUNT(dailyDate)  from Emp_Daily_Attendance where  ComID=@Comid and Month(dailyDate)=@MonthName and Year(dailyDate)=@Year and  RegId=B.RegId)
+from  #Employee_Information as B
+
+
+
+
+select 
+RegId,
+sum(LDays)  as TotalLeave
+into #Emp_Leave_Entry
+from Emp_Leave_Entry where  ComID=@Comid 
+and (Month(FrDate)=@MonthName and Year(FrDate)=@Year) or  (Month(ToDate)=@MonthName and Year(ToDate)=@Year) 
+group by RegId
+
+
+
+
+UPDATE #Employee_Information 
+SET LeaveDay=TotalLeave 
+FROM #Employee_Information as A
+INNER JOIN #Emp_Leave_Entry as B
+ON 
+ A.RegId=B.RegId
+
+
+
+UPDATE #Employee_Information 
+SET Present= TotalAtten+LeaveDay
+
+UPDATE #Employee_Information 
+SET Absent= WorkDay-Present
+
+
+UPDATE #Employee_Information 
+SET 
+Status= 
+case when leaveday =0 and absent=0  then 'A'
+ when leaveday >0 and absent=0  then 'B'
+ else 'C' end 
+
+
+
+select * from #Employee_Information
+
+
+
+select Wstatus,Status,COUNT(Status)as Total from #Employee_Information 
+
+group by Wstatus,Status order by Wstatus,Status
+
+
+--	exec [PrcGetEmpAttenInfo] 1,'4',2018
+
+
+

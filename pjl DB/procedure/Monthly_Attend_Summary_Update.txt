@@ -1,0 +1,236 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Monthly_Attend_Summary_Update]    Script Date: 12/24/2018 09:48:56 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Procedure [dbo].[Monthly_Attend_Summary_Update] @Month Varchar(20), @Year INT
+As
+
+DECLARE @WorkDay INT, @MonthSL INT,@WHDay INT, @BeginDate smallDateTime, @EndDate smallDateTime, @Message varchar(2047)
+
+SET @WorkDay=CASE WHEN @Month IN('January','March','May','July','August','October','December') THEN 31
+                  WHEN @Month ='February' AND (@Year%4)=0 THEN 29
+                  WHEN @Month ='February' AND (@Year%4)<>0 THEN 28 ELSE 30 END
+
+SET @MonthSL=(SELECT SLNo FROM Month_Name WHERE Month=@Month)
+
+Select @BeginDate= MIN(prDate),@EndDate=MAX(prDate) From Daily_Process_Status WHERE prMonth=@MonthSL AND prYear=@Year
+Select @WHDay= Count(prDate) From Daily_Process_Status WHERE prMonth=@MonthSL AND prYear=@Year AND Status='W'
+
+IF (Select COUNT(*) From Salary_And_Wages WHERE Month=@Month And Year=@Year)>=1 
+BEGIN
+  SET @Message='Salary Already Generated For Month: ' + @Month + ', ' +  Cast (@Year AS VarChar)
+  GOTO Second_Step
+END
+
+TRUNCATE TABLE Emp_Monthly_AttendN_2
+
+
+INSERT INTO Emp_Monthly_AttendN_2
+SELECT A.ComID,@Month,@Year,EmployeeCode,COUNT(DISTINCT prDate)-COUNT(DISTINCT DateWH),0,0,0,0,0,0,0,0,0,'-',0,0,0,0,0,@WorkDay,Department,Section,0,0,WStatus,0
+FROM Employee_Information A CROSS JOIN Daily_Process_Status B LEFT OUTER JOIN Emp_Day_Off_Entry C
+     ON A.EmployeeCode=C.EmpCode AND B.prDate=C.DateWH
+WHERE MLeft=0 AND MLeave=0 AND prDate>=JoiningDate AND prMonth=@MonthSL AND prYear=@Year AND B.Status IN ('W','G')
+GROUP BY A.ComID,A.EmployeeCode,A.Department,A.Section,A.WStatus
+
+
+INSERT INTO Emp_Monthly_AttendN_2
+SELECT A.ComID,@Month,@Year,EmployeeCode,0,0,0,0,0,0,0,0,0,0,'-',0,0,0,0,0,@WorkDay,Department,Section,0,0,WStatus,0
+FROM Employee_Information A CROSS JOIN Daily_Process_Status B LEFT OUTER JOIN Emp_Day_Off_Entry C
+     ON A.EmployeeCode=C.EmpCode AND B.prDate=C.DateWH
+WHERE MLeft=0 AND MLeave=0 AND prDate>=JoiningDate AND prMonth=@MonthSL AND prYear=@Year AND A.EmployeeCode NOT IN
+      (SELECT EmpCode FROM Emp_Monthly_AttendN_2)
+GROUP BY A.ComID,A.EmployeeCode,A.Department,A.Section,A.WStatus
+
+
+UPDATE A SET AttDay=A.AttDay+B.AttDay
+FROM Emp_Monthly_AttendN_2 A INNER JOIN (SELECT EmpCode,COUNT(DISTINCT B.DateWH) AS AttDay FROM Emp_Day_Off_Entry B
+WHERE MONTH(B.DateOff)=@MonthSL AND YEAR(B.DateOff)=@Year GROUP BY EmpCode) B ON A.EmpCode=B.EmpCode
+
+
+UPDATE A SET GHDay=B.GHDay
+FROM Emp_Monthly_AttendN_2 A CROSS JOIN (SELECT COUNT(DISTINCT B.prDate) AS GHDay FROM Daily_Process_Status B
+WHERE prMonth=@MonthSL AND prYear=@Year AND B.Status IN ('G')) B
+
+
+UPDATE C SET EmpNP=D.NP FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT EmployeeCode,COUNT(prDate) AS NP
+FROM Employee_Information A CROSS JOIN Daily_Process_Status B
+WHERE MLeft=0 AND prDate<JoiningDate AND prMonth=@MonthSL AND prYear=@Year
+GROUP BY A.EmployeeCode) D ON C.EmpCode=D.EmployeeCode
+
+
+
+UPDATE C SET AttDay=C.AttDay+D.AttDay,FoodDay=D.AttDay-D.NoFoodDay+D.FoodDay, ExtFDay=D.Tiffin, OTHrs=D.OT, TransAllow=D.TransAllow, DinnerAllow=D.DinnerAllow
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(select F.EmpCode, SUM(F.AttDay) as AttDay, SUM(F.NoFoodDay) AS NoFoodDay, SUM(F.FoodDay) AS FoodDay, SUM(f.Tiffin) as Tiffin, SUM(F.OT) as OT, SUM(F.TransAllow) AS TransAllow, SUM(F.DinnerAllow) AS DinnerAllow
+from (SELECT B.EmpCode,dailydate,case when EmpStatus IN ('P','L') then 1 when EmpStatus='H' then 0.5 else 0 end AS AttDay,
+             case when EmpStatus IN ('W','G') AND ((DATEPART(HH,RestOT+ValidOT)>6) OR (DATEPART(HH,RestOT+ValidOT)=6 AND DATEPART(N,RestOT+ValidOT)>0)) then 1 else 0 end AS FoodDay,
+             case when EmpStatus='H' THEN 0.5 when EmpStatus NOT IN ('H','W','G','A') AND ((DATEPART(HH,DailyHrs+ValidOT)<6) OR (DATEPART(HH,DailyHrs+ValidOT)=6 AND DATEPART(N,DailyHrs+ValidOT)=0)) then 1 else 0 end AS NoFoodDay
+             ,case when TiffAllow='Y' then 1 else 0 end AS Tiffin
+             ,case when WStatus='W' then (DATEPART(HH,RestOT+ValidOT+ExtraOT)+(DATEPART(N,RestOT+ValidOT+ExtraOT)/60.00))
+              when WStatus<>'W' and (EmpStatus IN ('W','G','O') OR IfFullOT='Y') and (DATEPART(HH,RestOT+ValidOT+ExtraOT)+(DATEPART(N,RestOT+ValidOT+ExtraOT)/60.00))>=4.5 then 1 else 0 end AS OT
+             ,TransAllow,DinnerAllow
+FROM Employee_Information A INNER JOIN Emp_Daily_Attendance B ON A.ComID=B.ComID AND A.EmployeeCode=B.EmpCode
+WHERE MONTH(DailyDate) = @MonthSL AND YEAR(DailyDate)=@Year
+GROUP BY B.EmpCode,DailyDate,EmpStatus,DailyHrs,ValidOT,RestOT,ExtraOT,TiffAllow,WStatus,TransAllow,DinnerAllow,IfFullOT) F group by F.EmpCode) D ON C.EmpCode=D.EmpCode
+WHERE dtMonth=@Month AND dtYear=@Year
+
+
+UPDATE C SET AttDay=C.AttDay+B.CL+B.SL+ B.EL + B.NW,
+             LVDay=B.CL+B.SL+B.EL, EmpCL=B.CL, EmpSL=B.SL, EmpEL=B.EL, EmpML=B.ML,
+             EmpNP=C.EmpNP+B.NP
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT A.EmpCode,SUM(A.CL) AS CL, SUM(A.SL) AS SL, SUM(A.EL) AS EL, SUM(A.NW) AS NW, SUM(A.ML) AS ML, SUM(A.NP) AS NP      
+FROM (SELECT EmpCode,CASE WHEN LType='CL' AND DayHalf=0 THEN SUM(LDays) WHEN LType='CL' AND DayHalf=1 THEN SUM(LDays)*0.5 ELSE 0 END AS CL,
+       -- CASE WHEN LType='SL' THEN SUM(LDays) ELSE 0 END AS SL
+        CASE WHEN LType='SL' AND DayHalf=0 THEN SUM(LDays) WHEN LType='SL' AND DayHalf=1 THEN SUM(LDays)*0.5  ELSE 0 END AS SL
+       ,CASE WHEN LType='EL' AND DayHalf=0 THEN SUM(LDays) WHEN LType='EL' AND DayHalf=1 THEN SUM(LDays)*0.5 ELSE 0 END AS EL,
+       CASE WHEN LType='NW' AND DayHalf=0 THEN SUM(LDays) WHEN LType='NW' AND DayHalf=1 THEN SUM(LDays)*0.5 ELSE 0 END AS NW,
+       CASE WHEN LType='ML' THEN SUM(LDays) ELSE 0 END AS ML
+       ,CASE WHEN LType IN ('NA','NP','UDP') AND DayHalf=0 THEN SUM(LDays) WHEN LType IN ('NA','NP','UDP') AND DayHalf=1 THEN SUM(LDays)*0.5 ELSE 0 END AS NP
+FROM Emp_Leave_Entry A Inner Join Employee_Information B On A.EmpCode=B.EmployeeCode
+WHERE MONTH(FrDate) = @MonthSL AND YEAR(FrDate)=@Year AND A.FrDate>=B.JoiningDate
+GROUP BY EmpCode,LType,DayHalf) A GROUP BY A.EmpCode) B ON C.EmpCode=B.EmpCode
+
+
+
+UPDATE C SET AttDay=AttDay-D.DayMinus
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT B.EmpCode,COUNT(prDate) AS DayMinus
+FROM Daily_Process_Status A CROSS JOIN Emp_Leave_Entry B Left Outer Join Emp_Day_Off_Entry C
+     On A.prDate=C.DateWH AND B.EmpCode=C.EmpCode
+WHERE prDate BETWEEN FrDate AND ToDate AND prMonth=@MonthSL AND prYear=@Year AND A.Status IN ('W','G') AND C.EmpCode IS NULL
+GROUP BY B.EmpCode) D ON C.EmpCode=D.EmpCode
+
+
+
+UPDATE C SET AttDay=AttDay-D.DayMinus
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT E.EmpCode,SUM(E.DayMinus) AS DayMinus
+FROM (SELECT A.EmpCode,CASE WHEN DayHalf=0 AND EmpStatus='H' THEN COUNT(DailyDate)*0.5
+       WHEN DayHalf=1 AND EmpStatus='H' THEN COUNT(DailyDate)*0 
+       WHEN DayHalf=1 AND EmpStatus<>'H' THEN COUNT(DailyDate)*0.5 ELSE COUNT(DailyDate) END AS DayMinus
+FROM Emp_Daily_Attendance A INNER JOIN Emp_Leave_Entry B ON A.ComID=B.ComID AND A.EmpCode=B.EmpCode AND A.DailyDate BETWEEN B.FrDate AND B.ToDate
+WHERE DailyDate BETWEEN FrDate AND ToDate AND MONTH(DailyDate) = @MonthSL AND YEAR(DailyDate)=@Year AND EmpStatus IN ('P','L','H')
+GROUP BY A.EmpCode,B.DayHalf,A.EmpStatus) E GROUP BY E.EmpCode) D ON C.EmpCode=D.EmpCode
+
+
+
+UPDATE C SET AttDay=AttDay-D.DayMinus
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT A.EmpCode, COUNT(DailyDate) AS DayMinus
+FROM Emp_Daily_Attendance A INNER JOIN Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+WHERE DailyDate<JoiningDate AND MONTH(DailyDate) = @MonthSL AND YEAR(DailyDate)=@Year AND EmpStatus IN ('P','L','H')
+GROUP BY A.EmpCode) D ON C.EmpCode=D.EmpCode
+
+
+UPDATE C SET FoodDay=FoodDay-D.DayMinus
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT E.EmpCode,SUM(E.DayMinus) AS DayMinus
+FROM (SELECT A.EmpCode, COUNT(DailyDate) AS DayMinus
+FROM Emp_Daily_Attendance A INNER JOIN Emp_Leave_Entry B ON A.ComID=B.ComID AND A.EmpCode=B.EmpCode AND A.DailyDate BETWEEN B.FrDate AND B.ToDate
+WHERE DailyDate BETWEEN FrDate AND ToDate AND MONTH(DailyDate) = @MonthSL AND YEAR(DailyDate)=@Year AND EmpStatus IN ('P','L')
+GROUP BY A.EmpCode,B.DayHalf,A.EmpStatus) E GROUP BY E.EmpCode) D ON C.EmpCode=D.EmpCode
+
+
+UPDATE C SET OTHrs= case when wstatus='W' then OTHrs-D.OTMinus else OTHrs-D.DayMinus end
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT E.EmpCode,SUM(E.DayMinus) AS DayMinus, SUM(E.OTMinus) as OTMinus
+FROM (SELECT A.EmpCode, COUNT(DailyDate) AS DayMinus, (DATEPART(HH,RestOT+ValidOT+ExtraOT)+(DATEPART(N,RestOT+ValidOT+ExtraOT)/60.00)) as OTMinus
+FROM Emp_Daily_Attendance A INNER JOIN Emp_Leave_Entry B ON A.ComID=B.ComID AND A.EmpCode=B.EmpCode AND A.DailyDate BETWEEN B.FrDate AND B.ToDate
+WHERE DailyDate BETWEEN FrDate AND ToDate AND MONTH(DailyDate) = @MonthSL AND YEAR(DailyDate)=@Year AND EmpStatus IN ('W','G') and LType='A'
+GROUP BY A.EmpCode,A.DailyDate,ValidOT,RestOT,ExtraOT) E GROUP BY E.EmpCode) D ON C.EmpCode=D.EmpCode
+
+
+UPDATE C SET TransAllow=TransAllow-D.TransMinus,DinnerAllow=DinnerAllow-D.DinnerMinus
+FROM Emp_Monthly_AttendN_2 C INNER JOIN
+(SELECT E.EmpCode,SUM(E.TransAllow) AS TransMinus, SUM(E.DinnerAllow) as DinnerMinus
+FROM (SELECT A.EmpCode, A.DailyDate,CASE WHEN DayHalf=0 THEN TransAllow WHEN DayHalf=1 AND (TrOutMax='Y' OR TrOutMin='Y') THEN TransAllow ELSE 0 END AS TransAllow, DinnerAllow
+FROM Emp_Daily_Attendance A INNER JOIN Emp_Leave_Entry B ON A.ComID=B.ComID AND A.EmpCode=B.EmpCode AND A.DailyDate BETWEEN B.FrDate AND B.ToDate
+     LEFT OUTER JOIN Emp_Daily_Transport H ON A.ComID=H.ComID AND A.EmpCode=H.EmpCode AND A.DailyDate=H.DailyDate
+WHERE A.DailyDate BETWEEN FrDate AND ToDate AND MONTH(A.DailyDate) = @MonthSL AND YEAR(A.DailyDate)=@Year And A.DailyDate<>'21-May-2016'
+GROUP BY A.EmpCode,A.DailyDate,A.TransAllow,A.DinnerAllow,H.TrOutMax,H.TrOutMin,B.DayHalf) E GROUP BY E.EmpCode) D ON C.EmpCode=D.EmpCode
+
+
+UPDATE Emp_Monthly_AttendN_2 SET ABSDAY=ABSDAY+(@WorkDay-(ATTDAY+ABSDAY+EmpML+EmpNP)) WHERE ATTDAY+ABSDAY+EmpML+EmpNP<>@WorkDay
+
+UPDATE A SET TransDay=B.TRANSDay FROM Emp_Monthly_AttendN_2 A INNER JOIN
+	(SELECT A.EmployeeCode,COUNT(B.DailyDate) AS TRANSDay
+	FROM Employee_Information A INNER JOIN Emp_Daily_Attendance B ON A.EmployeeCode=B.EmpCode INNER JOIN
+		 Daily_Process_Status C ON B.DailyDate=C.prDate INNER JOIN Month_Name D ON C.prMonth=D.SLNo
+	WHERE C.prMonth=@MonthSL AND C.prYear=@Year AND C.Status IN ('R','S') AND B.EmpStatus IN ('P','L') AND 
+		  A.WStatus IN ('W','F') AND A.BusAvail<>'Y'
+	GROUP BY A.EmployeeCode) B ON A.EmpCode=B.EmployeeCode WHERE A.ComID<>14
+	
+UPDATE A SET TransDay=A.TransDay+B.TRANSDay FROM Emp_Monthly_AttendN_2 A INNER JOIN
+	(SELECT A.EmployeeCode,COUNT(B.DailyDate) AS TRANSDay
+	FROM Employee_Information A INNER JOIN Emp_Daily_Attendance B ON A.EmployeeCode=B.EmpCode INNER JOIN
+		 Daily_Process_Status C ON B.DailyDate=C.prDate INNER JOIN Month_Name D ON C.prMonth=D.SLNo
+	WHERE C.prMonth=@MonthSL AND C.prYear=@Year AND C.Status IN ('W','G') AND B.DayStatus='R' AND 
+		  A.WStatus IN ('W','F') AND A.BusAvail<>'Y'
+	GROUP BY A.EmployeeCode) B ON A.EmpCode=B.EmployeeCode WHERE A.ComID<>14
+
+UPDATE Emp_Monthly_AttendN_2 SET FoodDay=0 WHERE (Wstatus<>'W' AND DeptName<>'TRANSPORT') OR (Wstatus='F' AND SubDept='VEHICLES MECHANIC') OR (Wstatus='F' AND DeptName='TRANSPORT' AND EmpCode LIKE 'OF%')
+
+UPDATE Emp_Monthly_AttendN_2 SET AttBonus=CASE WHEN AttDay-LVDay>WorkDay-1 THEN 'A'
+       WHEN AttDay-LVDay>WorkDay-2 AND AttDay-LVDay<=WorkDay-1 THEN 'B' ELSE '-' END
+WHERE (Wstatus='W') OR SubDept='DRIVER'
+
+SELECT A.Wstatus,A.EmpCode,A.DeptName,A.SubDept,A.AttDay,B.AttDay , A.OTHrs,B.OTHrs , A.ExtFDay,B.ExtFDay , A.LVDay,B.LVDay
+     , A.AttBonus,B.AttBonus , A.TransAllow,B.TransAllow , A.DinnerAllow,B.DinnerAllow , A.TransDay,B.TransDay
+FROM Emp_Monthly_AttendN_2 A INNER JOIN Emp_Monthly_AttendN B ON A.EmpCode=B.EmpCode AND A.dtMonth=B.dtMonth
+     AND A.dtYear=B.dtYear AND (A.AttDay<>B.AttDay OR A.OTHrs<>B.OTHrs OR A.ExtFDay<>B.ExtFDay OR A.LVDay<>B.LVDay OR A.AbsDay<>B.AbsDay OR A.FoodDay<>B.FoodDay
+     OR A.AttBonus<>B.AttBonus OR A.TransAllow<>B.TransAllow OR A.DinnerAllow<>B.DinnerAllow OR A.TransDay<>B.TransDay OR A.Wstatus<>B.Wstatus)
+ORDER BY 1,3,4,2 
+
+DELETE FROM Emp_Monthly_AttendN WHERE dtYear=@Year AND dtMonth=@Month
+
+INSERT INTO Emp_Monthly_AttendN
+SELECT B.*,A.ComID AS CompID,RegId,EmployeeCode,Designation,DesigAddi
+FROM Emp_Monthly_AttendN_2 B Inner Join Employee_Information A ON A.ComID=B.ComID AND A.EmployeeCode=B.EmpCode
+WHERE --Wstatus='S' AND
+     EmpCode NOT IN (SELECT EmployeeCode FROM Salary_And_Wages WHERE Year=@Year AND Month=@Month)
+
+DELETE A
+FROM Emp_Monthly_AttendN A INNER Join Employee_Information C ON A.EMPCODE=C.EMPLOYEECODE LEFT OUTER JOIN
+     (SELECT C.RegId FROM Emp_Daily_Attendance A INNER JOIN New_Month_Name B ON A.DailyDate BETWEEN B.BeginDate AND B.EndDate
+    INNER Join Employee_Information C ON A.EMPCODE=C.EMPLOYEECODE
+     WHERE B.MonthName=@Month AND B.YearName=@Year GROUP BY C.RegId) D ON C.RegId=D.RegId
+WHERE dtMonth=@Month AND dtYear=@Year AND (EmpEL+EmpCL+EmpSL+EmpML)=0 AND AttDay<=@WHDay+GHDay AND D.REGID IS NULL
+
+DELETE
+FROM Emp_Monthly_AttendN
+WHERE dtMonth=@Month AND dtYear=@Year AND FoodDay<0
+
+DELETE FROM Emp_Monthly_AttendN WHERE dtMonth=@Month AND dtYear=@Year AND AttDay<=0 
+
+DELETE
+FROM Emp_Monthly_AttendN
+WHERE dtMonth=@Month AND dtYear=@Year AND DeptName LIKE 'FOREIGN%'
+
+UPDATE  dbo.Emp_Monthly_AttendN SET FoodDay=0,AttBonus='-'
+WHERE   (dtMonth = @Month) AND (dtYear = @Year) AND (DeptName = 'TRANSPORT') AND (Wstatus <> 'W') AND (SubDept <> 'DRIVER')
+
+Delete A
+FROM Emp_Monthly_AttendN A INNER JOIN Salary_And_Wages_ML B
+ON A.EmpCode = B.EmployeeCode AND A.dtMonth = B.Month AND A.dtYear = B.Year
+WHERE A.dtMonth = @Month AND A.dtYear = @Year
+
+Delete A
+FROM Emp_Monthly_AttendN A INNER JOIN(
+	SELECT A.EmpCode,A.BRDate AS PayDate,B.AttDays,B.WagesMonthly AS DtMonth,B.Paid,B.SLNO FROM ResignationMain A
+	INNER JOIN ResignationWages B ON A.SLNo = B.SLNO
+	WHERE BRDate <= @EndDate) B ON A.EmpCode=B.EmpCode AND A.dtMonth=B.DtMonth
+WHERE A.dtMonth=@Month AND A.dtYear=@Year
+
+UPDATE Emp_Monthly_AttendN Set AttDay=AttDay+AbsDay, AbsDay=0
+WHERE dtMonth=@Month AND dtYear=@Year AND AbsDay<0
+     
+SET @Message='Attendance Summary Generated For Month: ' + @Month + ', ' + Cast (@Year AS VarChar)
+
+Second_Step:
+
+PRINT(@Message)

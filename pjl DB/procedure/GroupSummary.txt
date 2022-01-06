@@ -1,0 +1,126 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[GroupSummary]    Script Date: 12/24/2018 09:39:41 ******/
+SET ANSI_NULLS OFF
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+ALTER PROCEDURE [dbo].[GroupSummary]  @Month as nvarchar(50),@year as int,@PrevMonth as nvarchar(50)
+ AS
+declare @staff as int
+
+DELETE FROM Databasefile.dbo.AbsentPresent
+
+insert into Databasefile.dbo.AbsentPresent(comid,[year],[month],worker) select comid,@year,@month,count(*) from Databasefile.dbo.employee_information where mleft=0  and wstatus='W' group by comid
+
+--insert into Databasefile.dbo.AbsentPresent(comid,[year],[month],worker) select comid,@year,@month,count(*) from DatabasefileUJL.dbo.employee_information where mleft=0  and wstatus='W' group by comid
+--select @staff=(select count(*)  FROM  Databasefile.dbo.employee_information  INNER JOIN
+  --                   Databasefile.dbo.AbsentPresent ON Databasefile.dbo.AbsentPresent.ComId = Databasefile.dbo.Employee_Information.ComID where Databasefile.dbo.Employee_Information.mleft=0 and Databasefile.dbo.Employee_Information.wstatus='f')
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.Staff=(select count(*)  FROM  Databasefile.dbo.employee_information where mleft=0 and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JR=(select count(*)  FROM  Databasefile.dbo.employee_information  where mleft=0 and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SR=(select count(*)  FROM  Databasefile.dbo.employee_information where mleft=0 and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TWorker=(select count(*)  FROM  Databasefile.dbo.employee_information where mleft=0 and attoff='y' and wstatus='w') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TStaff=(select count(*)  FROM  Databasefile.dbo.employee_information where mleft=0 and attoff='y' and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TJr=(select count(*)  FROM  Databasefile.dbo.employee_information where mleft=0 and attoff='y' and wstatus='j') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TSR=(select count(*)  FROM  Databasefile.dbo.employee_information where mleft=0 and attoff='y' and wstatus='s') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.WPrevMonth=(select count(*) FROM  Databasefile.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='w') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.FPrevMonth=(select count(*) FROM  Databasefile.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='F') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JPrevMonth=(select count(*) FROM  Databasefile.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SPrevMonth=(select count(*) FROM  Databasefile.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=1
+--+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+insert into Databasefile.dbo.AbsentPresent(comid,[year],[month],worker) select comid,@year,@month,count(*) from DatabasefileUJL.dbo.employee_information where mleft=0  and wstatus='W' group by comid
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.Staff=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information where  mleft=0 and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JR=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information where mleft=0 and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SR=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information  where mleft=0 and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TWorker=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='w') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TStaff=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TJr=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='j') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TSR=(select count(*)  FROM  DatabasefileUJL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='s') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.WPrevMonth=(select count(*) FROM  DatabasefileUJL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='W') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.FPrevMonth=(select count(*) FROM  DatabasefileUJL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='F') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JPrevMonth=(select count(*) FROM  DatabasefileUJL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SPrevMonth=(select count(*) FROM  DatabasefileUJL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=7
+----+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+insert into Databasefile.dbo.AbsentPresent(comid,[year],[month],worker) select comid,@year,@month,count(*) from DatabasefileJ2L.dbo.employee_information where mleft=0  and wstatus='W' group by comid
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.Staff=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information where  mleft=0 and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JR=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information where mleft=0 and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SR=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information  where mleft=0 and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TWorker=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information where mleft=0 and attoff='y' and wstatus='w') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TStaff=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information where mleft=0 and attoff='y' and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TJr=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information where mleft=0 and attoff='y' and wstatus='j') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TSR=(select count(*)  FROM  DatabasefileJ2L.dbo.employee_information where mleft=0 and attoff='y' and wstatus='s') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.WPrevMonth=(select count(*) FROM  DatabasefileJ2L.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='W') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.FPrevMonth=(select count(*) FROM  DatabasefileJ2L.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='F') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JPrevMonth=(select count(*) FROM  DatabasefileJ2L.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SPrevMonth=(select count(*) FROM  DatabasefileJ2L.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=5
+--+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+insert into Databasefile.dbo.AbsentPresent(comid,[year],[month],worker) select comid,@year,@month,count(*) from DatabasefilePAL.dbo.employee_information where mleft=0  and wstatus='W' group by comid
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.Staff=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information where  mleft=0 and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JR=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information where mleft=0 and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SR=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information  where mleft=0 and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TWorker=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='w') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TStaff=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='f') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TJr=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='j') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.TSR=(select count(*)  FROM  DatabasefilePAL.dbo.employee_information where mleft=0 and attoff='y' and wstatus='s') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.WPrevMonth=(select count(*) FROM  DatabasefilePAL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='W') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.FPrevMonth=(select count(*) FROM  DatabasefilePAL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='F') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.JPrevMonth=(select count(*) FROM  DatabasefilePAL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='J') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+update Databasefile.dbo.AbsentPresent SET   Databasefile.dbo.AbsentPresent.SPrevMonth=(select count(*) FROM  DatabasefilePAL.dbo.Emp_Monthly_AttendN WHERE dtYear = 2011 AND dtMonth = @PrevMonth and wstatus='S') WHERE Databasefile.dbo.AbsentPresent.ComId=3
+
+--SELECT     dbo.Employee_Information.WStatus, COUNT(DISTINCT dbo.Emp_Daily_Attendance.EmpCode) AS Employee
+--FROM         dbo.Emp_Daily_Attendance INNER JOIN
+  --                    dbo.Employee_Information ON dbo.Emp_Daily_Attendance.ComID = dbo.Employee_Information.ComID AND 
+    --                  dbo.Emp_Daily_Attendance.EmpCode = dbo.Employee_Information.EmployeeCode
+--WHERE     (dbo.Emp_Daily_Attendance.DailyDate = '11-oct-2011')
+--GROUP BY dbo.Employee_Information.WStatus
+
+--SELECT     dbo.Employee_Information.WStatus, COUNT(DISTINCT dbo.Emp_Daily_Attendance.EmpCode) AS Employee
+--FROM         dbo.Emp_Daily_Attendance INNER JOIN
+  --                    dbo.Employee_Information ON dbo.Emp_Daily_Attendance.ComID = dbo.Employee_Information.ComID AND 
+    --                  dbo.Emp_Daily_Attendance.EmpCode = dbo.Employee_Information.EmployeeCode
+--WHERE     (dbo.Emp_Daily_Attendance.DailyDate = '10-oct-2011')
+--GROUP BY dbo.Employee_Information.WStatus

@@ -1,0 +1,63 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlter_viewTransferLetter]    Script Date: 12/24/2018 10:59:02 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[prcAlter_viewTransferLetter] @FrComId tinyInt, @ToComId tinyInt, @DeptName varchar(50), @SubDeptName Varchar(50), @Empcode varchar(15), @EffectDate smallDateTime
+as
+
+--	Exec prcAlter_viewTransferLetter 1, 7, 'SEWING', 'LINE # ST-22', '220008', '01-mar-2008'
+--	Select * from viewTransferLetter
+
+Declare @ToComName varchar(50), @ToComAdd varchar(255), @ToComNameB varchar(50), @ToComAddB varchar(255)
+select @ToComName = Name, @ToComAdd = Address, @ToComNameB = NameBangla, @ToComAddB = AddressBangla 
+From Company_Information Where id = @ToComId
+
+If ltrim(rtrim(@EmpCode)) <> '' 
+Begin
+Exec ('Alter view viewTransferLetter
+	as 
+	Select A.Comid as FComId, B.Name AS FComName, B.Address AS FComAddress, B.NameBangla As FrComNameB, B.AddressBangla As FrComAddB,
+	'''+ @ToComName  +''' AS ToComName, '''+ @ToComNameB +''' AS ToComNameB, '''+ @ToComAdd +''' AS ToComAdd, '''+ @ToComAddB +''' AS ToComAddB,
+	A.EmployeeCode, A.Name as EmpName, A.Department, A.Section, A.Designation, A.PreAddress As EmpAddress, A.Wstatus,
+	A.JoiningDate, 
+	CASE 
+		When ((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''') )/ 12) = 0 then
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) % 12) as varchar(2)) +'' gvm ''
+		When ((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) % 12) > 0 then
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) / 12) as varchar(3)) +'' eQi  I  '' +
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) % 12) as varchar(2))  +'' gvm ''
+		Else
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) / 12) as varchar(3)) + '' eQi ''
+	END AS JobDuration, cast('''+ @EffectDate +''' as smalldatetime) As EffectDate,
+	A.CurrRate AS GrossSalary, B.Basic, B.HRent, 150 As Medical, 100 As Conveyence
+	From Employee_Information AS A
+	Inner Join Company_Information as B On A.Comid = B.Id 
+	Where A.Comid = '+ @FrComID +' and A.Department = '''+ @DeptName +''' and A.Section = '''+ @SubDeptName +''' and A.EmployeeCode = '''+ @EmpCode +'''
+	')
+end
+else
+begin
+Exec ('Alter view viewTransferLetter
+	as 
+	Select A.Comid as FComId, B.Name AS FComName, B.Address AS FComAddress, B.NameBangla As FrComNameB, B.AddressBangla As FrComAddB,
+	'''+ @ToComName  +''' AS ToComName, '''+ @ToComNameB +''' AS ToComNameB, '''+ @ToComAdd +''' AS ToComAdd, '''+ @ToComAddB +''' AS ToComAddB,
+	A.EmployeeCode, A.Name as EmpName, A.Department, A.Section, A.Designation, A.PreAddress As EmpAddress, A.Wstatus,
+	A.JoiningDate, 
+	CASE 
+		When ((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''') )/ 12) = 0 then
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) % 12) as varchar(2)) +'' gvm ''
+		When ((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) % 12) > 0 then
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) / 12) as varchar(3)) +'' eQi  I  '' +
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) % 12) as varchar(2))  +'' gvm ''
+		Else
+			Cast(((DateDiff("Month", A.JoiningDate, '''+ @EffectDate +''')) / 12) as varchar(3)) + '' eQi ''
+	END AS JobDuration, cast('''+ @EffectDate +''' as smalldatetime) As EffectDate,
+	A.CurrRate AS GrossSalary, B.Basic, B.HRent, 150 As Medical, 100 As Conveyence
+	From Employee_Information AS A
+	Inner Join Company_Information as B On A.Comid = B.Id 
+	Where A.Comid = '+ @FrComID +' and A.Department = '''+ @DeptName +''' and A.Section = '''+ @SubDeptName +'''
+	')
+end

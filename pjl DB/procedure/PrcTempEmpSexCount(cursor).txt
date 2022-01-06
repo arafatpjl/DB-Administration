@@ -1,0 +1,52 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[PrcTempEmpSexCount]    Script Date: 01/06/2019 16:15:19 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER proc [dbo].[PrcTempEmpSexCount]
+As
+Declare @UDeptName nvarchar(50)
+Declare @USubDeptName nvarchar(50)
+Declare @USex nvarchar(50)
+Declare @USexCount int
+
+
+
+BEGIN
+SET NOCOUNT ON;
+	DECLARE UpdateEmp SCROLL CURSOR FOR
+	( Select  Department,Section,ESex,ESexCount from  #TempEmpSexCount Where Status=9 )
+  	OPEN UpdateEmp
+	FETCH FIRST FROM UpdateEmp
+	INTO @UDeptName,@USubDeptName,@USex,@USexCount
+	
+       While  @@FETCH_STATUS=0
+        		BEGIN															
+			UPDATE #TempEmpSexCount SET ESex=@USex,ESexCount=@USexCount WHERE Status=2 And Department=@UDeptName And Section=@USubDeptName And Sex=@USex
+			--UPDATE #TempEmpSexCount SET ESex=@USex,ESexCount=@USexCount WHERE Status=2 --And Sex=@USex
+
+			SET NOCOUNT ON  SELECT @USex=0  
+			
+		--SELECT * FROM #TempEmpSexCount
+	FETCH next FROM UpdateEmp
+	INTO @UDeptName,@USubDeptName,@USex,@USexCount
+	END
+
+ END
+
+CLOSE UpdateEmp
+DEALLOCATE UpdateEmp
+
+
+Insert Into #TempEmpSexCount(Department,Section,Sex,SexCount,ESex,ESexCount,Status)
+Select Department,Section,Sex,Sum(SexCount),ESex,Sum(ESexCount),10 From #TempEmpSexCount
+Where Sex In ('Female','Male')
+Group By Department,Section,Sex,ESex,Status
+
+SET NOCOUNT ON Delete From #TempEmpSexCount Where Status In(2,9)
+
+
+

@@ -1,0 +1,92 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[InsertTemp_Salary_And_Wages]    Script Date: 12/24/2018 09:41:14 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[InsertTemp_Salary_And_Wages]
+
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	
+SET NOCOUNT ON;
+
+
+
+CREATE TABLE [dbo].[#Temp_Salary_And_Wages](
+	[Year] [nvarchar](4) NULL,
+	[Month] [nvarchar](10) NULL,
+	[EmployeeCode] [nvarchar](15) NULL,
+	[EmpName] [nvarchar](50) NULL,
+	[Designation] [nvarchar](25) NULL,
+	[RatePay] [smallint] NULL,
+	[AttenDays] [real] NULL,
+	[OTHours] [real] NULL,
+	[FoodDays] [tinyint] NULL,
+	[Basic] [smallint] NULL,
+	[HouseRent] [smallint] NULL,
+	[Medical] [smallint] NULL,
+	[Transport] [smallint] NULL,
+	[SpAllow] [smallint] NULL,
+	[WEarned] [int] NOT NULL,
+	[OTPay] [smallint] NULL,
+	[FoodPay] [smallint] NULL,
+	[AttenBonus] [smallint] NULL,
+	[OthersE] [smallint] NULL,
+	[TransportD] [smallint] NULL,
+	[OthersD] [smallint] NULL,
+	[NetPayTK] [int] NOT NULL,
+	[CasLeaveDay] [real] NULL,
+	[MedLeaveDay] [real] NULL,
+	[EarLeaveDay] [real] NULL,
+	[GrossPayD] [real] NULL,
+	[DeptName] [nvarchar](50) NULL,
+	[SubDeptName] [nvarchar](50) NULL,
+	[OneT] [smallint] NULL,
+	[FiveH] [tinyint] NULL,
+	[OneH] [tinyint] NULL,
+	[Fifty] [tinyint] NULL,
+	[Twenty] [tinyint] NULL,
+	[Ten] [tinyint] NULL,
+	[Five] [tinyint] NULL,
+	[Two] [tinyint] NULL,
+	[One] [tinyint] NULL,
+	[ComName] [nvarchar](50) NULL,
+	[Address] [nvarchar](100) NULL,
+	[Status] [nvarchar](70) NULL,
+	[JoiningDate] [smalldatetime] NULL,
+	[IncrDate] [smalldatetime] NULL,
+	[DollarRate] [real] NULL,
+	[FoodAllow] [smallint] NULL,
+	[Subs] [smallint] NULL,
+	[Cont] [smallint] NULL,
+	[Loan] [smallint] NULL,
+	[Interest] [smallint] NULL,
+	[SubSubDept] [nvarchar](50) NULL,
+	[GradeNo] [nvarchar](50) NULL,
+	[AbsentDay] [real] NULL,
+	[AbsAmount] [smallint] NULL,
+	[WorkDays] [tinyint] NULL,
+	[FracPay] [smallint] NULL,
+	[FracPayD] [smallint] NULL,
+	[TransAllow] [smallint] NULL,
+	[DinnerAllow] [smallint] NULL,
+	[Wstatus] [char](1) NOT NULL,
+	[Stamp] [tinyint] NOT NULL
+) 
+
+ INSERT INTO #Temp_Salary_And_Wages 
+ SELECT * FROM Temp_Salary_And_Wages 
+ 
+ DELETE FROM Temp_Salary_And_Wages 
+ 
+  SELECT * FROM #Temp_Salary_And_Wages       
+drop table #Temp_Salary_And_Wages       
+  
+-- Insert statements for procedure here
+
+	
+END

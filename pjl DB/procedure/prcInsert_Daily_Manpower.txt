@@ -1,0 +1,141 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcInsert_Daily_Manpower]    Script Date: 01/06/2019 15:01:09 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+----SELECT * FROM Manpower_Daily_List WHERE DailyDate '01-JUN-2017'
+
+-- EXEC prcInsert_Daily_Manpower '25-Apr-2018'
+
+ALTER PROC [dbo].[prcInsert_Daily_Manpower] @DailyDate SmallDateTime
+AS
+
+DECLARE @PrevDate SmallDateTime
+SELECT @PrevDate = MAX(prDate) FROM Daily_Process_Status WHERE prDate < @DailyDate AND Status IN ('R','S')
+
+--- Insert Daily Manpower ---
+
+UPDATE A SET A.AttOff = 'Y',A.DiscDate = B.DailyDate FROM Employee_Information A INNER JOIN Emp_Daily_Off_On B ON A.RegID = B.RegID
+WHERE A.MLeft = 0 AND A.MLeave = 0 AND A.AttOff = 'N'
+
+UPDATE A SET A.DiscDate = B.DailyDate FROM Employee_Information A INNER JOIN Emp_Daily_Off_On B ON A.RegID = B.RegID
+WHERE A.MLeft = 0 AND A.MLeave = 0 AND B.EmpOff = 1 AND (A.DiscDate <> B.DailyDate OR A.DiscDate IS NULL)
+
+DELETE FROM Manpower_Daily_List WHERE DailyDate < @DailyDate - 7
+
+INSERT INTO Manpower_Daily_List (Department,Section,EmpCode,EmpName,DesigMain,WStatus,TimeIn,EmpStatus,DesigAddi,Designation,DailyDate,ShiftID,ProcessCat,RegID,ComID)
+
+--- Total Existing Manpower ---
+SELECT Department,Section,EmployeeCode,Name,Designation AS DesigMain,WStatus,'00:00:00' AS TimeIn,'E' AS EmpStatus,
+CASE WHEN WStatus = 'J' THEN 'JR MGT' WHEN WStatus = 'S' THEN 'SR MGT' ELSE DesigAddi END AS DesigAddi,
+CASE WHEN WStatus = 'J' THEN 'JR MGT' WHEN WStatus = 'S' THEN 'SR MGT' WHEN WStatus = 'W' THEN Designation ELSE DesigAddi END AS Designation,
+@DailyDate AS Dailydate,ShiftID,ProcessCat,RegId,ComID FROM Employee_Information WHERE MLeft = 0 AND MLeave = 0 AND AttOff = 'N'
+
+UNION ALL
+
+--- Total Present ---
+SELECT B.Department,B.Section,A.EmpCode,B.Name,B.Designation AS DesigMain,B.WStatus,A.TimeIn,A.EmpStatus,
+CASE WHEN B.WStatus = 'J' THEN 'JR MGT' WHEN B.WStatus = 'S' THEN 'SR MGT' ELSE B.DesigAddi END AS DesigAddi,
+CASE WHEN B.WStatus = 'J' THEN 'JR MGT' WHEN B.WStatus = 'S' THEN 'SR MGT' WHEN B.WStatus = 'W' THEN B.Designation ELSE B.DesigAddi END AS Designation,
+A.DailyDate,B.ShiftID,B.ProcessCat,A.RegID,A.ComID FROM Emp_Daily_Attendance A INNER JOIN Employee_Information B ON A.REGID = B.RegId
+WHERE A.DailyDate = @DailyDate AND A.EmpStatus <> 'A'
+
+UNION ALL
+
+SELECT B.Department,B.Section,A.EmpCode,B.Name,B.Designation AS DesigMain,B.WStatus,A.TimeIn,A.EmpStatus,
+CASE WHEN B.WStatus = 'J' THEN 'JR MGT' WHEN B.WStatus = 'S' THEN 'SR MGT' ELSE B.DesigAddi END AS DesigAddi,
+CASE WHEN B.WStatus = 'J' THEN 'JR MGT' WHEN B.WStatus = 'S' THEN 'SR MGT' WHEN B.WStatus = 'W' THEN B.Designation ELSE B.DesigAddi END AS Designation,
+@DailyDate AS DailyDate,C.ShiftID,B.ProcessCat,A.RegID,A.ComID FROM Emp_Daily_Attendance A INNER JOIN Employee_Information B ON A.RegID = B.RegId INNER JOIN
+    (Select * From Emp_Shift Where Date=@DailyDate AND InTime > CAST (convert(TIME, getdate()) AS smalldatetime)) C ON B.RegId = C.RegId
+WHERE B.Mleft = 0 AND B.Mleave = 0 AND B.AttOff = 'N' AND B.RegID = A.RegID
+AND A.EmpStatus <> 'A' AND A.DailyDate = @PrevDate AND A.RegID NOT IN (SELECT RegId FROM Emp_Daily_Attendance WHERE DailyDate = @DailyDate)
+
+
+--- Insert Daily Manpower Summary ---
+
+INSERT INTO Manpower_Daily (ComID,DailyDate,Department,Section,DesigAddi,Designation,WStatus,DayStatus,Existing,Present,ActPresent,
+TempLeft,FinalLeft,[Transfer],NewJoin,UDP,EL,CL,SL,ML,DailyHrs,OTEmp,OTHrs,ExtOTEmp,ExtOTHrs,MaleE,MaleActP,FemaleE,FemaleActP,ComSN,ExistBasic,ExistGross)
+
+SELECT M.ComID,@DailyDate AS DailyDate,M.Department,M.Section,M.DesigAddi,M.Designation,M.WStatus,S.[Status] AS DayStatus,M.ExistEmp,CASE WHEN N.EmpP IS NULL THEN 0 ELSE N.EmpP END AS EmpP,
+0 AS EmpActP,CASE WHEN P.TempLeft IS NULL THEN 0 ELSE P.TempLeft END AS TempLeft,CASE WHEN Q.FinalLeft IS NULL THEN 0 ELSE Q.FinalLeft END AS FinalLeft,0 AS EmpTranser,CASE WHEN O.EmpJoin IS NULL THEN 0 ELSE O.EmpJoin END AS EmpJoin,
+CASE WHEN R.EmpUDP IS NULL THEN 0 ELSE R.EmpUDP END AS EmpUDP,CASE WHEN R.EmpEL IS NULL THEN 0 ELSE R.EmpEL END AS EmpEL,CASE WHEN R.EmpCL IS NULL THEN 0 ELSE R.EmpCL END AS EmpCL,CASE WHEN R.EmpSL IS NULL THEN 0 ELSE R.EmpSL END AS EmpSL,
+CASE WHEN R.EmpML IS NULL THEN 0 ELSE R.EmpML END AS EmpML,0 AS DailyHrs,0 AS OTEmp,0 AS OTHrs,0 AS ExtOTEmp,0 AS ExtOTHrs,M.MaleE,CASE WHEN N.MaleP IS NULL THEN 0 ELSE N.MaleP END AS MaleActP,M.FeMaleE,CASE WHEN N.FeMaleP IS NULL THEN 0 ELSE N.FeMaleP END AS FemaleActP,
+CASE WHEN M.ComID = 1 THEN 'PJL' WHEN M.ComID = 5 THEN 'J2L' WHEN M.ComID = 7 THEN 'UJL' WHEN M.ComID = 13 THEN 'NHTF' WHEN M.ComID = 3 THEN 'PAL' WHEN M.ComID = 14 THEN 'NHTH' ELSE 'N/A' END AS ComSN,ROUND(M.TotalBasic,0) AS ExistBasic,ROUND(M.TotalGross,0) AS ExistGross
+
+FROM (
+--- Total Existing Manpower ---
+SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,SUM(A.CountEmp) AS ExistEmp,SUM(A.Male) AS MaleE,SUM(A.FeMale) AS FeMaleE,ROUND(SUM(A.TotalBasic),0) AS TotalBasic,SUM(A.TotalGross) AS TotalGross
+FROM (SELECT B.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,COUNT(A.RegID) AS CountEmp,CASE WHEN SUBSTRING(B.Sex,1,1)='M' THEN COUNT(A.RegID) ELSE 0 END AS Male,CASE WHEN SUBSTRING(B.Sex,1,1)='F' THEN COUNT(A.RegID) ELSE 0 END AS FeMale,
+CASE WHEN A.WStatus = 'W' THEN SUM((B.CurrRate-560)*0.714286) WHEN A.WStatus = 'F' THEN SUM((B.CurrRate*60)/100) ELSE 0 END AS TotalBasic,CASE WHEN A.WStatus IN ('W','F') THEN SUM(B.CurrRate) ELSE 0 END AS TotalGross
+FROM Manpower_Daily_List A INNER JOIN Employee_Information B ON A.RegID = B.RegID WHERE A.WStatus <> 'J' AND A.DailyDate = @DailyDate AND A.EmpStatus = 'E' GROUP BY B.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,B.Sex) A
+GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation
+
+UNION ALL
+
+SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,SUM(A.CountEmp) AS ExistEmp,SUM(A.Male) AS MaleE,SUM(A.FeMale) AS FeMaleE,ROUND(SUM(A.TotalBasic),0) AS TotalBasic,SUM(A.TotalGross) AS TotalGross
+FROM (SELECT B.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,COUNT(A.RegID) AS CountEmp,CASE WHEN SUBSTRING(B.Sex,1,1)='M' THEN COUNT(B.RegID) ELSE 0 END AS Male,CASE WHEN SUBSTRING(B.Sex,1,1)='F' THEN COUNT(B.RegID) ELSE 0 END AS FeMale,
+SUM(CASE WHEN C.CurBasic IS NULL THEN ROUND((B.CurrRate*50)/100,0) ELSE C.CurBasic END) AS TotalBasic,SUM(CASE WHEN C.CurGrossPay IS NULL THEN B.CurrRate ELSE C.CurGrossPay END) AS TotalGross FROM Manpower_Daily_List A INNER JOIN Employee_Information B
+ON A.RegID = B.RegID LEFT JOIN Datapayroll.dbo.view_Employee_Information C ON B.ComID = C.CompID AND B.EmployeeCode = C.EmpCode WHERE A.WStatus = 'J' AND A.DailyDate = @DailyDate AND A.EmpStatus = 'E'
+GROUP BY B.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,B.Sex) A GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation
+
+) AS M LEFT JOIN (
+
+--- Total Present ---
+
+SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,SUM(A.CountEmp) AS EmpP,SUM(A.Male) AS MaleP,SUM(A.FeMale) AS FeMaleP
+FROM (SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,COUNT(A.RegID) AS CountEmp,CASE WHEN SUBSTRING(B.Sex,1,1)='M' THEN COUNT(B.RegID) ELSE 0 END AS Male,
+CASE WHEN SUBSTRING(B.Sex,1,1)='F' THEN COUNT(B.RegID) ELSE 0 END AS FeMale FROM Manpower_Daily_List A INNER JOIN Employee_Information B ON A.RegID = B.RegID
+WHERE A.DailyDate = @DailyDate AND A.EmpStatus <> 'E' GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,B.Sex
+
+) A GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation
+
+) AS N ON M.ComID=N.ComId AND M.WStatus = N.WStatus AND M.Department = N.Department AND M.Section = N.Section AND M.DesigAddi = N.DesigAddi AND M.Designation = N.Designation
+
+LEFT JOIN (
+
+--- New Joining ---
+
+SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,SUM(A.CountEmp) AS EmpJoin FROM (SELECT ComID,WStatus,Department,Section,
+CASE WHEN WStatus = 'J' THEN 'JR MGT' WHEN WStatus = 'S' THEN 'SR MGT' ELSE DesigAddi END AS DesigAddi,CASE WHEN WStatus = 'J' THEN 'JR MGT' WHEN WStatus = 'S' THEN 'SR MGT'
+WHEN WStatus = 'W' THEN Designation ELSE DesigAddi END AS Designation,COUNT(RegID) AS CountEmp FROM Employee_Information WHERE JoiningDate = @DailyDate 
+GROUP BY ComID,WStatus,Department,Section,DesigAddi,Designation) A GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation
+
+) AS O ON M.ComID=O.ComID AND M.WStatus = O.WStatus AND M.Department = O.Department AND M.Section = O.Section AND M.DesigAddi = O.DesigAddi AND M.Designation = O.Designation
+
+LEFT JOIN (
+--- Temp Left ---
+SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,SUM(A.CountEmp) AS TempLeft FROM (SELECT A.ComID,A.WStatus,A.Department,A.Section,
+CASE WHEN A.WStatus = 'J' THEN 'JR MGT' WHEN A.WStatus = 'S' THEN 'SR MGT' ELSE A.DesigAddi END AS DesigAddi,CASE WHEN A.WStatus = 'J' THEN 'JR MGT' WHEN A.WStatus = 'S' THEN 'SR MGT'
+WHEN A.WStatus = 'W' THEN A.Designation ELSE A.DesigAddi END AS Designation,COUNT(A.RegID) AS CountEmp FROM Employee_Information A INNER JOIN Emp_Daily_Off_On B
+ON A.RegID = B.RegID WHERE B.DailyDate = @DailyDate AND B.EmpOff = 1 GROUP BY A.ComID,A.WStatus,A.Department,A.Section,
+A.DesigAddi,A.Designation) A GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation
+
+) AS P ON M.ComID=P.ComID AND M.WStatus = P.WStatus AND M.Department = P.Department AND M.Section = P.Section AND M.DesigAddi = P.DesigAddi AND M.Designation = P.Designation
+
+LEFT JOIN (
+--- Final Left ---
+SELECT A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation,SUM(A.CountEmp) AS FinalLeft FROM (SELECT ComID,WStatus,Department,Section,
+CASE WHEN WStatus = 'J' THEN 'JR MGT' WHEN WStatus = 'S' THEN 'SR MGT' ELSE DesigAddi END AS DesigAddi,CASE WHEN WStatus = 'J' THEN 'JR MGT' WHEN WStatus = 'S' THEN 'SR MGT'
+WHEN WStatus = 'W' THEN Designation ELSE DesigAddi END AS Designation,COUNT(RegID) AS CountEmp FROM Employee_Information WHERE MLeft = 1
+AND LeftDate = @DailyDate GROUP BY ComID,WStatus,Department,Section,DesigAddi,Designation) A GROUP BY A.ComID,A.WStatus,A.Department,A.Section,A.DesigAddi,A.Designation
+
+) AS Q ON M.ComID=Q.ComID AND M.WStatus = Q.WStatus AND M.Department = Q.Department AND M.Section = Q.Section AND M.DesigAddi = Q.DesigAddi AND M.Designation = Q.Designation
+
+LEFT JOIN (
+--- Total Leave ---
+SELECT C.ComID,C.WStatus,C.Department,C.Section,C.DesigAddi,C.Designation,SUM(C.CountEmp) AS EmpLV,SUM(C.EmpEL) AS EmpEL,SUM(C.EmpCL) AS EmpCL,SUM(C.EmpSL) AS EmpSL,SUM(C.EmpML) AS EmpML,SUM(C.EmpUDP) AS EmpUDP FROM 
+(SELECT B.ComID,B.WStatus,B.Department,B.Section,CASE WHEN B.WStatus = 'J' THEN 'JR MGT' WHEN B.WStatus = 'S' THEN 'SR MGT' ELSE B.DesigAddi END AS DesigAddi,
+CASE WHEN B.WStatus = 'J' THEN 'JR MGT' WHEN B.WStatus = 'S' THEN 'SR MGT' WHEN B.WStatus = 'W' THEN B.Designation ELSE B.DesigAddi END AS Designation,COUNT(A.RegID) AS CountEmp,CASE WHEN A.LType = 'EL' THEN COUNT(A.RegID) ELSE 0 END AS EmpEL,
+CASE WHEN A.LType = 'CL' THEN COUNT(A.RegID) ELSE 0 END AS EmpCL,CASE WHEN A.LType = 'SL' THEN COUNT(A.RegID) ELSE 0 END AS EmpSL,CASE WHEN A.LType = 'ML' THEN COUNT(A.RegID) ELSE 0 END AS EmpML,
+CASE WHEN A.LType NOT IN ('EL','CL','SL','ML') THEN COUNT(A.RegID) ELSE 0 END AS EmpUDP FROM Emp_Leave_Entry A INNER JOIN Employee_Information B ON A.RegID = B.RegID
+WHERE @DailyDate BETWEEN A.FrDate AND A.ToDate GROUP BY B.ComID,B.WStatus,B.Department,B.Section,B.DesigAddi,B.Designation,A.LType)C GROUP BY C.ComID,C.WStatus,C.Department,C.Section,C.DesigAddi,C.Designation
+
+) AS R ON M.ComID=R.ComID AND M.WStatus = R.WStatus AND M.Department = R.Department AND M.Section = R.Section AND M.DesigAddi = R.DesigAddi AND M.Designation = R.Designation
+
+Cross JOIN (
+
+SELECT prDate,[Status] FROM Daily_Process_Status WHERE prDate = @DailyDate) AS S

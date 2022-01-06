@@ -1,0 +1,293 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlterViewIncrementNew]    Script Date: 01/06/2019 11:21:24 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+ALTER proc [dbo].[prcAlterViewIncrementNew] @ComId tinyInt, @IncrDate smalldatetime, @Department varchar(25), @Section varchar(25), @FromDate smallDateTime, @ToDate SmallDateTime, @Status tinyInt, @IncrDTWise tinyint,@WSTATUS NVARCHAR(10)
+
+
+
+As
+
+--	@Status For Propose Sheet
+Declare @Percent real
+set @Percent = .10 --Means 10%
+
+Set dateformat dmy
+If @IncrDTWise = 0 
+Begin
+	If @Department <> '' and @Section <> '' 
+	Begin
+		exec ('	Alter view ViewIncrementNew1 as 
+			Select A.ComId, C.Name As ComName, C.Address AS ComAddress, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmpName, A.JoiningDate, A.Designation, 
+			Datepart(year, '''+ @IncrDate +''') AS IncrementYear, A.Department, a.Section, A.WStatus, (A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0))) AS CurrRate, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))* '+ @Percent +'),0)
+				else isnull(B.IncrRate, 0)
+			End AS IncrementRate, 
+			D.IncrDate AS LastIncrementDate, isnull(D.IncrRate, 0) AS LastIncrement, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0) + Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*.10),0)
+				else isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0)
+			End AS GrossWillBe, 
+			cast('''+ @FromDate+''' as smalldatetime) as FromDate, Cast('''+ @ToDate +''' As SmallDateTime) AS ToDate, ' + @IncrDTWise + ' As IncrDTWise, A.REGID
+	
+			From Employee_Information AS A
+			Inner Join Company_Information AS C On A.ComID = C.Id 
+			Left Outer Join Increment_Information AS B On B.RegID = A.RegID  and B.IncrDate = '''+ @IncrDate+'''
+	
+			Left Outer Join 
+			(
+				Select X.RegID, X.IncrDate, X.incrRate
+				from Increment_Information AS X
+				Inner Join
+				(
+					Select RegID, max(IncrDate) as IncrDate
+					from Increment_Information 
+					Where  IncrDate < '''+ @IncrDate+'''
+					Group By RegID
+				) AS Y On X.RegID = Y.RegID and X.IncrDate = Y.IncrDate
+			)AS D On A.RegID = D.RegID		
+	
+			Left Outer Join 
+			( 
+				Select RegID, Sum(IncrRate) AS NextIncrAmount
+				From Increment_Information 
+				Where  IncrDate > ''' + @IncrDate + ''' 
+				Group By RegID
+			) AS E On A.RegID = E.RegID
+			Where ((A.Comid = '+ @ComId +') --and (A.MLeft = 0) 
+			and (A.JoiningDate Between '''+ @FromDate +''' and '''+ @ToDate +''')
+			and (A.Department = ''' + @Department + ''') and (A.Section = ''' + @Section + '''))
+		')
+	end
+	else If @Department <> '' 
+	Begin
+	
+		exec ('	Alter view ViewIncrementNew1 as 
+			Select A.ComId, C.Name As ComName, C.Address AS ComAddress, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmpName, A.JoiningDate, A.Designation, 
+			Datepart(year, '''+ @IncrDate +''') AS IncrementYear, A.Department, a.Section, A.WStatus, (A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0))) AS CurrRate, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*'+ @Percent +'),0)
+				else isnull(B.IncrRate, 0)
+			End AS IncrementRate, 
+			D.IncrDate AS LastIncrementDate, isnull(D.IncrRate, 0) AS LastIncrement, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0) + Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*.10),0)
+				else isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0)
+			End AS GrossWillBe, 
+			cast('''+ @FromDate+''' as smalldatetime) as FromDate, Cast('''+ @ToDate +''' As SmallDateTime) AS ToDate, ' + @IncrDTWise + ' As IncrDTWise, A.REGID
+	
+			From Employee_Information AS A
+			Inner Join Company_Information AS C On A.ComID = C.Id 
+			Left Outer Join Increment_Information AS B On B.RegID = A.RegID  and B.IncrDate = '''+ @IncrDate+'''
+			Left Outer Join 
+			(
+				Select X.RegID, X.IncrDate, X.incrRate
+				from Increment_Information AS X
+				Inner Join
+				(
+					Select RegID, max(IncrDate) as IncrDate
+					from Increment_Information 
+					Where  IncrDate < '''+ @IncrDate+'''
+					Group By RegID
+				) AS Y On X.RegID = Y.RegID and X.IncrDate = Y.IncrDate
+			)AS D On A.RegID = D.RegID		
+	
+			Left Outer Join 
+			( 
+				Select RegID, Sum(IncrRate) AS NextIncrAmount
+				From Increment_Information 
+				Where  IncrDate > ''' + @IncrDate + ''' 
+				Group By RegID
+			) AS E On A.RegID = E.RegID
+	
+			Where ((A.Comid = '+ @ComId +') --and (A.MLeft = 0) 
+			And (A.JoiningDate Between '''+ @FromDate +''' and '''+ @ToDate +''')
+			and (A.Department = ''' + @Department + ''' ))
+		')
+	end
+	else
+	Begin
+	
+		exec ('	Alter view ViewIncrementNew1 as 
+			Select A.ComId, C.Name As ComName, C.Address AS ComAddress, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmpName, A.JoiningDate, A.Designation, 
+			Datepart(year, '''+ @IncrDate +''') AS IncrementYear, A.Department, a.Section, A.WStatus, (A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0))) AS CurrRate, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*'+ @Percent +'),0)
+				else isnull(B.IncrRate, 0)
+			End AS IncrementRate, 
+			D.IncrDate AS LastIncrementDate, isnull(D.IncrRate, 0) AS LastIncrement, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0) + Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*.10),0)
+				else isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0)
+			End AS GrossWillBe, 
+			cast('''+ @FromDate+''' as smalldatetime) as FromDate, Cast('''+ @ToDate +''' As SmallDateTime) AS ToDate, ' + @IncrDTWise + ' As IncrDTWise, A.REGID
+	
+			From Employee_Information AS A
+			Inner Join Company_Information AS C On A.ComID = C.Id 
+			Left Outer Join Increment_Information AS B On B.RegID = A.RegID  and B.IncrDate = '''+ @IncrDate+'''
+			Left Outer Join 
+			(
+				Select X.RegID, X.IncrDate, X.incrRate
+				from Increment_Information AS X
+				Inner Join
+				(
+					Select RegID, max(IncrDate) as IncrDate
+					from Increment_Information 
+					Where  IncrDate < '''+ @IncrDate+'''
+					Group By RegID
+				) AS Y On X.RegID = Y.RegID and X.IncrDate = Y.IncrDate
+			)AS D On A.RegID = D.RegID		
+	
+			Left Outer Join 
+			( 
+				Select RegID, Sum(IncrRate) AS NextIncrAmount
+				From Increment_Information 
+				Where  IncrDate > ''' + @IncrDate + ''' 
+				Group By RegID
+			) AS E On A.RegID = E.RegID
+	
+			Where ((A.Comid = '+ @ComId +') --and (A.MLeft = 0) 
+			and (A.JoiningDate Between '''+ @FromDate +''' and '''+ @ToDate +'''))
+		')
+	end
+End
+Else
+Begin
+	If @Department <> '' and @Section <> '' 
+	Begin
+		exec ('	Alter view ViewIncrementNew1 as 
+			Select A.ComId, C.Name As ComName, C.Address AS ComAddress, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmpName, A.JoiningDate, A.Designation, 
+			Datepart(year, '''+ @IncrDate +''') AS IncrementYear, A.Department, a.Section, A.WStatus, (A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0))) AS CurrRate, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))* '+ @Percent +'),0)
+				else isnull(B.IncrRate, 0)
+			End AS IncrementRate, 
+			D.IncrDate AS LastIncrementDate, isnull(D.IncrRate, 0) AS LastIncrement, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0) + Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*.10),0)
+				else isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0)
+			End AS GrossWillBe, 
+			cast('''+ @IncrDate+''' as smalldatetime) as FromDate, Cast('''+ @ToDate +''' As SmallDateTime) AS ToDate, ' + @IncrDTWise + ' As IncrDTWise, A.REGID
+	
+			From Employee_Information AS A
+			Inner Join Company_Information AS C On A.ComID = C.Id 
+			Inner Join Increment_Information AS B On B.RegID = A.RegID  and B.IncrDate = '''+ @IncrDate+'''
+	
+			Left Outer Join 
+			(
+				Select X.RegID, X.IncrDate, X.incrRate
+				from Increment_Information AS X
+				Inner Join
+				(
+					Select RegID, max(IncrDate) as IncrDate
+					from Increment_Information 
+					Where  IncrDate < '''+ @IncrDate+'''
+					Group By RegID
+				) AS Y On X.RegID = Y.RegID and X.IncrDate = Y.IncrDate
+			)AS D On A.RegID = D.RegID		
+	
+			Left Outer Join 
+			( 
+				Select RegID, Sum(IncrRate) AS NextIncrAmount
+				From Increment_Information 
+				Where  IncrDate > ''' + @IncrDate + ''' 
+				Group By RegID
+			) AS E On A.RegID = E.RegID
+			Where ((A.Comid = '+ @ComId +') --and (A.MLeft = 0) 
+			and (A.Department = ''' + @Department + ''') and (A.Section = ''' + @Section + '''))
+		')
+	end
+	else If @Department <> '' 
+	Begin
+	
+		exec ('	Alter view ViewIncrementNew1 as 
+			Select A.ComId, C.Name As ComName, C.Address AS ComAddress, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmpName, A.JoiningDate, A.Designation, 
+			Datepart(year, '''+ @IncrDate +''') AS IncrementYear, A.Department, a.Section, A.WStatus, (A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0))) AS CurrRate, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*'+ @Percent +'),0)
+				else isnull(B.IncrRate, 0)
+			End AS IncrementRate, 
+			D.IncrDate AS LastIncrementDate, isnull(D.IncrRate, 0) AS LastIncrement, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0) + Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*.10),0)
+				else isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0)
+			End AS GrossWillBe, 
+			cast('''+ @IncrDate+''' as smalldatetime) as FromDate, Cast('''+ @ToDate +''' As SmallDateTime) AS ToDate, ' + @IncrDTWise + ' As IncrDTWise, A.REGID
+	
+			From Employee_Information AS A
+			Inner Join Company_Information AS C On A.ComID = C.Id 
+			Inner Join Increment_Information AS B On B.RegID = A.RegID  and B.IncrDate = '''+ @IncrDate+'''
+			Left Outer Join 
+			(
+				Select X.RegID, X.IncrDate, X.incrRate
+				from Increment_Information AS X
+				Inner Join
+				(
+					Select RegID, max(IncrDate) as IncrDate
+					from Increment_Information 
+					Where  IncrDate < '''+ @IncrDate+'''
+					Group By RegID
+				) AS Y On X.RegID = Y.RegID and X.IncrDate = Y.IncrDate
+			)AS D On A.RegID = D.RegID		
+	
+			Left Outer Join 
+			( 
+				Select RegID, Sum(IncrRate) AS NextIncrAmount
+				From Increment_Information 
+				Where  IncrDate > ''' + @IncrDate + ''' 
+				Group By RegID
+			) AS E On A.RegID = E.RegID
+	
+			Where ((A.Comid = '+ @ComId +') --and (A.MLeft = 0) 
+			and (A.Department = ''' + @Department + ''' ))
+		')
+	end
+	else
+	Begin
+	
+		exec ('	Alter view ViewIncrementNew1 as 
+			Select A.ComId, C.Name As ComName, C.Address AS ComAddress, A.EmployeeCode, ltrim(rtrim(A.Name)) AS EmpName, A.JoiningDate, A.Designation, 
+			Datepart(year, '''+ @IncrDate +''') AS IncrementYear, A.Department, a.Section, A.WStatus, (A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0))) AS CurrRate, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*'+ @Percent +'),0)
+				else isnull(B.IncrRate, 0)
+			End AS IncrementRate, 
+			D.IncrDate AS LastIncrementDate, isnull(D.IncrRate, 0) AS LastIncrement, 
+			Case 
+				When '+ @Status + '= 1 and isnull(B.IncrRate, 0) = 0 then isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0) + Round(((A.CurrRate - (isnull(B.IncrRate, 0)+ isnull(E.NextIncrAmount, 0)))*.10),0)
+				else isnull(A.CurrRate - Isnull(E.NextIncrAmount, 0), 0)
+			End AS GrossWillBe, 
+			cast('''+ @IncrDate+''' as smalldatetime) as FromDate, Cast('''+ @ToDate +''' As SmallDateTime) AS ToDate, ' + @IncrDTWise + ' As IncrDTWise, A.REGID
+	
+			From Employee_Information AS A
+			Inner Join Company_Information AS C On A.ComID = C.Id 
+			Inner Join Increment_Information AS B On B.RegID = A.RegID  and B.IncrDate = '''+ @IncrDate+'''
+			Left Outer Join 
+			(
+				Select X.RegID, X.IncrDate, X.incrRate
+				from Increment_Information AS X
+				Inner Join
+				(
+					Select RegID, max(IncrDate) as IncrDate
+					from Increment_Information 
+					Where  IncrDate < '''+ @IncrDate+'''
+					Group By RegID
+				) AS Y On X.RegID = Y.RegID and X.IncrDate = Y.IncrDate
+			)AS D On A.RegID = D.RegID		
+	
+			Left Outer Join 
+			( 
+				Select RegID, Sum(IncrRate) AS NextIncrAmount
+				From Increment_Information 
+				Where  IncrDate > ''' + @IncrDate + ''' 
+				Group By RegID
+			) AS E On A.RegID = E.RegID
+
+			Where (A.Comid = '+ @ComId +') --and (A.MLeft = 0)
+		')
+	end
+End

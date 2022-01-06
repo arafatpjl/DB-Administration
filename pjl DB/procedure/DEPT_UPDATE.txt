@@ -1,0 +1,97 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[DEPT_UPDATE]    Script Date: 12/24/2018 09:38:32 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[DEPT_UPDATE] AS 
+DECLARE @DEPT NVARCHAR
+DECLARE @CORR NVARCHAR
+DECLARE @COUNT INT
+--SELECT @@CURSOR_ROWS
+DECLARE DEPT_CURSOR SCROLL CURSOR FOR
+(SELECT Department,CORR FROM DEPTTT)
+
+OPEN DEPT_CURSOR
+
+SET @COUNT=@@CURSOR_ROWS
+--WHILE @@FETCH_STATUS=0
+WHILE @COUNT>0
+BEGIN
+FETCH FIRST FROM DEPT_CURSOR INTO @DEPT,@CORR
+--SELECT DEPARTMENT FROM DEPTT
+--UPDATE DEPTT SET DEPARTMENT='ADMINSTRATION' WHERE DEPARTMENT='ADMIN'
+UPDATE DEPTT SET DEPARTMENT=@CORR WHERE DEPARTMENT=@DEPT
+UPDATE Acc_Dept_Name SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Acc_Employee_Information SET Department=@CORR WHERE Department=@DEPT
+UPDATE Acc_Final_Settlement SET Department=@CORR WHERE Department=@DEPT
+UPDATE Acc_New_Ledger SET Department=@CORR WHERE Department=@DEPT
+UPDATE Acc_Salary_And_Wages SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Acc_Sub_Dept_Name SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Bonus_Entry SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Bonus_Entry_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Dept_Name SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Dept_Name_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Designation_increment SET department=@CORR WHERE department=@DEPT
+UPDATE Designation_Salary SET Department=@CORR WHERE Department=@DEPT
+UPDATE Designationclass SET Department=@CORR WHERE Department=@DEPT
+UPDATE Emp_Absent_Entry SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Absent_Entry_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Absent_Status SET Department=@CORR WHERE Department=@DEPT
+UPDATE Emp_EL_Balance_Day SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_EL_Payment SET Dept=@CORR WHERE Dept=@DEPT
+UPDATE Emp_EL_Payment_DelEdit SET Dept=@CORR WHERE Dept=@DEPT
+UPDATE Emp_Monthly_Attend SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Monthly_AttendN SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Monthly_AttendOT SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Monthly_Extra_Day SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Monthly_Extra_Day_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Pro_Fund SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Emp_Salary_Range SET Department=@CORR WHERE Department=@DEPT
+UPDATE Emp_Service_Length SET Department=@CORR WHERE Department=@DEPT
+UPDATE EmpDinner SET Department=@CORR WHERE Department=@DEPT
+UPDATE EmpDinner_DelEdit SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee_History SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee_Information SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee_Information_DelEdit SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee_Job_History SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee_Process SET Department=@CORR WHERE Department=@DEPT
+UPDATE Employee_Update SET Department=@CORR WHERE Department=@DEPT
+UPDATE FoodAttendRate SET Department=@CORR WHERE Department=@DEPT
+UPDATE FoodAttendRate_DelEdit SET Department=@CORR WHERE Department=@DEPT
+UPDATE Incrementsummary SET Department=@CORR WHERE Department=@DEPT
+UPDATE Insurance_Data SET Department=@CORR WHERE Department=@DEPT
+UPDATE Left_Absent_Payment SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Left_Absent_Payment_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Left_Absent_PaymentOT SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Left_Absent_PaymentOT_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Mat_Leave_Benifit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Maternity_Leave_Main SET department=@CORR WHERE department=@DEPT
+UPDATE Maternity_Leave_Main_DelEdit SET department=@CORR WHERE department=@DEPT
+UPDATE MonthDinner SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE MonthDinner_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Overtime SET department=@CORR WHERE department=@DEPT
+UPDATE OverTime_Entry SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Pay_Advice_Officer SET dept=@CORR WHERE dept=@DEPT
+UPDATE Pay_Advice_Officer_DelEdit SET dept=@CORR WHERE dept=@DEPT
+UPDATE Rptabs SET Dept=@CORR WHERE subdept=@DEPT
+UPDATE Salary_And_Wages SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Salary_And_Wages_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Salary_And_WagesN SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Salary_And_WagesOT SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Salary_And_WagesOT_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Salary_And_Wages_ML SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Sub_Dept_Name SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Sub_Dept_Name_DelEdit SET DeptName=@CORR WHERE DeptName=@DEPT
+UPDATE Sub_Sub_Dept_Name SET DeptName=@CORR WHERE DeptName=@DEPT
+
+--FETCH NEXT FROM DEPT_CURSOR INTO @DEPT,@CORR
+SET @COUNT=@COUNT-1
+END 
+CLOSE DEPT_CURSOR
+DEALLOCATE DEPT_CURSOR
+
+
+

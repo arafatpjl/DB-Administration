@@ -1,0 +1,370 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAttend_Update_Ind]    Script Date: 01/06/2019 11:26:07 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcAttend_Update_Ind] @ComId tinyInt, @EmpCode varchar(15), @Date smallDatetime, @TimeIn smallDateTime, @TimeOut smallDateTime, @IfFullOT tinyInt, @NextDayOut tinyInt ,@UserName nvarchar(100),@UserPass nvarchar(100),@ComputerName nvarchar(100),@EntryDate SmallDateTime,@EntryTime SmallDateTime,@EntryMode char(1)
+as
+--	Exec prcAttend_Update_Ind 1, 'JR1634', '02-Aug-2018', '08:21', '16:30', 0,0,'PACIFIC','DEPTSOFT','PJLCICT-FAISAL','13-Aug-2018','13-Aug-2018 15:06:29','T';
+--	Exec prcAttend_Update_Ind 5, 'WSB0923', '08-AUG-2008', '19:47', '04:30', 0, 1
+-- 	Select @Comid = 1, @EmpCode = 'W2B0043', @Date = '10-Jun-2008', @TimeIn = '06:06', @TimeOut = '14:20', @IfFullOT = 0
+
+Declare @Regid BigInt
+Declare @BusAvail char(1), @ExtraOT smallDateTime
+Declare @ShiftId tinyInt, @IsNightShift tinyInt, @ShiftIn smallDateTime, @ShiftLate smallDateTime, 
+	@BreakHrs smallDateTime, @RegHrs smallDateTime, @AllowOT SmallDateTime, @LateHrs smallDateTime,
+	@TimeInCal smalldatetime, @TimeOutCal smalldatetime, @DailyHrs smallDateTime,
+	@ValidOT smallDateTime, @RestOT smallDatetime
+
+Declare @IsHoliday tinyInt, @DayStatus char(1), @IsDayHide tinyInt, @IsLate tinyInt,
+	@EmpStatus char(1), @WStatus char(1), @IsHartalDay tinyInt,
+	@IsAllowTiffin tinyInt, @IsAllowFS tinyInt, @IsManual tinyInt
+
+Declare @TransAllow smallInt, @DinnerAllow SmallInt --, @EntryMode char(1) -- T = Temporary, F = Final, B = Buyer
+
+Select @BusAvail = 'N', @ExtraOT = '00:00', @ShiftId = 0, @IsNightShift = 0, @ShiftIn = '00:00', @ShiftLate = '00:00',
+	@BreakHrs = '00:00', @RegHrs  = '00:00', @AllowOT  = '00:00', @LateHrs  = '00:00', 
+	@TimeInCal = '00:00', @TimeOutCal = '00:00', @DailyHrs = '00:00', @ValidOT = '00:00',
+	@RestOT = '00:00', 
+	@IsHoliday = 0, @DayStatus = 'R', @IsDayHide = 0, @EmpStatus = '-', @WStatus = 'W',
+	@IsAllowTiffin = 0, @IsAllowFS = 0, @IsManual = 1,
+	@TransAllow = 0, @DinnerAllow = 0, @EntryTime = GETDATE() --, @EntryMode = 'F'
+
+If @NextDayOut = 1 AND @TimeOut>0
+Begin
+	Set @TimeOut = CASE When DATEPART(DD,@TimeOut) = 1 Then DateAdd(d, 1, @TimeOut) Else @TimeOut End
+End
+
+Print 'Shift Related Transaction'
+Select @ShiftId = ShiftId, @BusAvail = BusAvail, @WStatus = Wstatus,@Regid=RegId
+	From Employee_Information 
+	Where ComId = @Comid And EmployeeCode = @EmpCode
+
+Select @ShiftId = ShiftId 
+	From Emp_Transfer_Shift 
+	Where Regid=@Regid And DailyDate = @Date
+
+Select @ShiftIn = ShiftIn, 
+		@IsNightShift = Case When ShiftN = 'Y' Then 1 Else 0 End,
+		@ShiftLate = Case When @BusAvail = 'Y' Or @WStatus = 'S' Then DateAdd(n, 25, ShiftLate) Else ShiftLate End,
+		@BreakHrs = BreakHrs, @RegHrs = RegHrs, @AllowOT = AllowOT
+	From Emp_General_Shift 
+	Where ((ShiftId = @ShiftId))
+
+Select @IsHoliday = Holiday, @DayStatus = [Status], 
+		@IsDayHide = Case When DayHide = 'Y' Then 1 Else 0 End,
+		@IsHartalDay = Case When [Status] = 'F' Then 1 Else 0 End
+	From Daily_Process_Status 
+	Where ((PrDate = @Date))
+
+--Select @IsHoliday = 1, @DayStatus = 'W' From Emp_Default_Day_Off 
+--	 Where ((EmpCode = @EmpCode) AND (ComID = @ComId) And (UPPER(CONVERT(VARCHAR(3),DayOff)) = UPPER(CONVERT(VARCHAR(3),DATENAME(DW,@Date)))))
+
+Select @IsHoliday = 1, @DayStatus = 'O' From Emp_Day_Off_Entry 
+	 Where (Regid=@Regid And (DateOff = @Date))
+
+Select @IsHoliday = 0, @DayStatus = 'R', @IsDayHide = 0 From Emp_Day_Off_Entry
+	 Where (Regid=@Regid And (DateWH = @Date))
+
+Select  @ShiftIn = ShiftIn, 
+		@ShiftLate = Case When @BusAvail = 'Y' Or @WStatus = 'S' Then DateAdd(n, 25, ShiftLate) Else ShiftLate End,
+		@AllowOT = AllowOT
+	From Daily_Process_Others 
+	Where ((@ShiftId = 1) And (@Date BetWeen FrDate and ToDate))
+
+Select @TransAllow = TransAllow, @DinnerAllow = DinnerAllow, @ExtraOT = ExtraOT,
+	@IsManual = CASE WHEN AttnStatus = 'A' THEN 0 ELSE 1 END From Emp_Daily_Attendance
+	Where (Regid=@Regid And (DailyDate = @Date))
+
+If @EntryMode <> 'S' Begin SET @IsManual = 1 End
+
+Print 'Start Calculation'
+Select @LateHrs = 
+		Case 
+			When Datediff(n, @ShiftLate, @TimeIn) > 0 Then DateAdd(n, Datediff(n, @ShiftIn, @TimeIn), @LateHrs)
+			Else DateAdd(n, 0, @LateHrs)
+		End,
+	@IsLate =
+		Case
+			When Datediff(n, @ShiftLate, @TimeIn) > 0 Then 1
+			Else 0
+		End,
+	@TimeInCal = 
+		DateAdd(n, 
+			Case 
+				When DatePart(n, @TimeIn) <= 24 Then 0
+				When DatePart(n, @TimeIn) >= 25 And DatePart(n, @TimeIn) <= 55 Then 30
+				When DatePart(n, @TimeIn) > 55 Then 60
+			End, DateAdd(n, -DatePart(n, @TimeIn), @TimeIn)), 
+	@TimeOutCal = 	
+		@TimeOut
+
+SELECT @TimeOutCal = ActionTime FROM Employee_Information CROSS JOIN Time_Round
+    WHERE @TimeOut BETWEEN FrTime AND ToTime AND EmployeeCode=@EmpCode AND WStatus='W' AND ActionTime<>'00:00'
+
+
+Select @TimeInCal = @ShiftIn
+	Where ((@TimeInCal <> '00:00') And (DateDiff(n, @ShiftIn, @TimeInCal) <= 30))
+--	Where ((@IsHoliday = 0) And (@TimeInCal <> '00:00') And (DateDiff(n, @ShiftIn, @TimeInCal) <= 30))
+
+Print 'Calculating Daily Hours'
+
+If @IsHoliday = 0
+Begin
+	Print 'General Day'
+	Select	@DailyHrs = DateAdd(n, 
+		Case
+			When ((@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And DateDiff(hh, @TimeInCal, @TimeOutCal)>7) Then DateDiff(n, @TimeInCal, @TimeOutCal) - DatePart(n, @BreakHrs)
+			When ((@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(hh, @TimeInCal, @TimeOutCal)>0) And (DateDiff(hh, @TimeInCal, @TimeOutCal)<= 7) ) Then DateDiff(n, @TimeInCal, @TimeOutCal)
+			Else 0
+		End, @DailyHrs)
+
+	Select @DailyHrs = '12:00' --DateAdd(n, DatePart(n, @BreakHrs), @DailyHrs)
+	Where 
+	(
+		(@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(n, @TimeInCal, @TimeOutCal)>0) And 
+		((Datepart(hh, @TimeOutCal) = 8) Or (DatePart(hh, @TimeOutCal) = 20)) And (@DailyHrs BETWEEN '11:30' AND '11:59') 
+	)
+
+
+	--Select @DailyHrs = DateAdd(n, 15, @DailyHrs)
+	--Where 
+	--(
+	--	(@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(n, @TimeInCal, @TimeOutCal)>0) And 
+	--	((Datepart(hh, @TimeOutCal) = 8) Or (DatePart(hh, @TimeOutCal) = 20)) And (@DailyHrs = '11:45') 
+	--)
+
+
+ --      Select @DailyHrs = DateAdd(n, DatePart(n, @BreakHrs), @DailyHrs)
+	--Where 
+	--(
+	--	(@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(n, @TimeInCal, @TimeOutCal)>0) And 
+	--	((Datepart(hh, @TimeOutCal) > 7) Or (DatePart(hh, @TimeOutCal) > 19)) And (@DailyHrs = '11:30') 
+	--)
+
+	Select @ValidOT = DateAdd(n, 
+			Case 
+				When datediff(n, @RegHrs + @AllowOT, @DailyHrs) >= 0 Then DateDiff(n, '00:00', @AllowOT)
+				Else datediff(n, @RegHrs, @DailyHrs)
+			End, @ValidOT),
+		@RestOT = DateAdd(n, 
+			Case 
+				When datediff(n, @RegHrs + @AllowOT, @DailyHrs) >= 0 Then DateDiff(n, @RegHrs + @AllowOT, @DailyHrs)
+				Else 0
+			End, @RestOT)
+	Where 
+	(
+		(@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(n, @TimeInCal, @TimeOutCal)>0) And 
+		(Datediff(hh, '00:00', @DailyHrs) >= 8 )
+	) 
+
+	Select @ValidOT = 
+		Case
+			When (@IsHartalDay = 1)  Then DateAdd(hh, 2, @ValidOT)
+			Else @ValidOT
+		End,
+		@EmpStatus = 
+		Case 
+			When ((@TimeInCal = '00:00') And (@TimeOutCal > '00:00')) Then '-' 
+			When ((@TimeInCal > '00:00') And (@TimeOutCal = '00:00')) Then '-' 
+			When (((@TimeInCal = '00:00') And (@TimeOutCal = '00:00')) Or  (@DailyHrs < '04:00'))  Then 'A' 
+			When (@DailyHrs >= '04:00' and @DailyHrs < '06:00') Then 'H' 
+			When (@DailyHrs >= '06:00') Then 'P' 
+			Else '-'
+		End,
+		@IsAllowTiffin =
+		Case 
+			When ((@WStatus In('W', 'F')) And (@DailyHrs = '12:00') And (@TimeInCal Between '07:00' And '09:00') And (@TimeOutCal Between '20:00' And '21:00')) Then 1
+			When ((@WStatus In('W', 'F')) And (@DailyHrs = '12:00') And (@TimeInCal Between '19:00' And '21:00') AND (@TimeOutCal Between '02-Jan-1900 08:00' And '02-Jan-1900 09:00')) Then 1
+			Else 0
+		End, 
+		@IsAllowFS = 
+		Case
+			When ((@WStatus = 'W') And (@DailyHrs > '06:00')) Then 1
+			Else 0	
+		End
+
+	Select @ValidOT = @DailyHrs, @RestOT = '00:00'
+		Where ((@IfFullOT = 1)) 
+
+	Select @DailyHrs = '00:00'
+		Where ((@IfFullOT = 1))
+End
+Else
+Begin
+	Print 'Holiday'
+	Select @DailyHrs = DateAdd(n, 
+		Case
+			When ((@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And DateDiff(hh, @TimeInCal, @TimeOutCal)>7) Then DateDiff(n, @TimeInCal, @TimeOutCal) - DatePart(n, @BreakHrs)
+			When ((@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(hh, @TimeInCal, @TimeOutCal)>0) And (DateDiff(hh, @TimeInCal, @TimeOutCal)<= 7) ) Then DateDiff(n, @TimeInCal, @TimeOutCal)
+			Else 0
+		End, @DailyHrs)
+
+--	Out Time 8.00 or 20.00  & Daily Hrs 12.00 Then Breakhrs (.30) Should not deduct)
+	Select @DailyHrs = '12:00' --DateAdd(n, DatePart(n, @BreakHrs), @DailyHrs)
+	Where 
+	(
+		(@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(n, @TimeInCal, @TimeOutCal)>0) And 
+		((Datepart(hh, @TimeOutCal) = 8) Or (DatePart(hh,@TimeOutCal) = 20)) And (@DailyHrs BETWEEN '11:30' AND '11:59') 
+	)
+
+	--Select @DailyHrs = DateAdd(n, 15, @DailyHrs)
+	--Where 
+	--(
+	--	(@TimeInCal > '00:00') And (@TimeOutCal > '00:00') And (DateDiff(n, @TimeInCal, @TimeOutCal)>0) And 
+	--	((Datepart(hh, @TimeOutCal) = 8) Or (DatePart(hh,@TimeOutCal) = 20)) And (@DailyHrs = '11:45') 
+	--)
+
+--	Calculate Valid OT (Buyer Allow) & Rest OT (Hide From Buyer)
+	Select @ValidOT = @DailyHrs, @RestOT = '00:00'
+	Where ((@IsDayHide = 0)) 
+
+--	Calculate Valid OT (Buyer Allow) & Rest OT (Hide From Buyer)
+	Select @ValidOT = '00:00', @RestOT = @DailyHrs
+	Where ((@IsDayHide = 1)) 
+
+--	Update EmpStatus
+	Select @EmpStatus = @DayStatus,
+--		Case 
+--			When ((@TimeInCal = '00:00') And (@TimeOutCal > '00:00')) Then '-' 
+--			When ((@TimeInCal > '00:00') And (@TimeOutCal = '00:00')) Then '-' 
+--			When ((@TimeInCal = '00:00') And (@TimeOutCal = '00:00')) Then 'W' 
+--			When ((@Wstatus <> 'W') And (@TimeInCal = '00:00') And (@TimeOutCal = '00:00') Or  (@DailyHrs < '05:00')) Then 'A'
+--			Else @DayStatus
+--		End,
+	@IsAllowTiffin =
+		Case 
+--			When ((@WStatus In('W', 'F')) And (@DailyHrs >= '12:00') And (@TimeOut < '20:00')) Then 1
+			When ((@WStatus In('W', 'F')) And (@DailyHrs = '12:00') And (@TimeInCal Between '07:00' And '09:00') And (@TimeOutCal Between '19:00' And '20:00')) Then 1
+			When ((@WStatus In('W', 'F')) And (@DailyHrs = '12:00') And (@TimeInCal Between '18:00' And '21:00') AND (@TimeOutCal Between '02-Jan-1900 08:00' And '02-Jan-1900 09:00')) Then 1
+			Else 0
+		End, 
+	@IsAllowFS = 
+		Case
+			When ((@WStatus = 'W') And (@DailyHrs > '06:00')) Then 1
+			Else 0	
+		End
+
+
+--	Holiday Daily Hrs Display 00:00
+	Select @DailyHrs = '00:00'
+End
+
+
+If @IfFullOT = 1 
+Begin
+	Declare @TVOT as smallDateTime, @TROT as smallDateTime
+	Select @TVOT = Case 
+		When @AllowOT = '00:00' Then '00:00' 
+		When (@AllowOT <= (@ValidOT + @DailyHrs)) Then @AllowOT
+		When (@AllowOT > (@ValidOT + @DailyHrs)) Then (@ValidOT + @DailyHrs)
+		End,
+	@TROT = Case
+		When @AllowOT = '00:00' Then (@ValidOT + @DailyHrs)
+		When (@AllowOT <= (@ValidOT + @DailyHrs)) Then '00:00'
+		ELSE '00:00'
+		End
+	Select @ValidOT = @TVOT, @RestOT = @TROT, @DailyHrs = '00:00'
+End
+
+IF @TimeIn = @TimeOut
+Begin
+	Select @TimeOut = '00:00', @EmpStatus = '-'
+End
+
+--	=================== Finally Update To Main Table
+	Delete From Daily_Attend_Final
+	Where Comid = @Comid And EmpCode = @EmpCode And DailyDate = @Date
+
+	Insert Into Daily_Attend_Final (Comid, EmpCode, DailyDate, ShiftId, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		EmpStatus, DayStatus, IsHoliday, IsDayHide, IsHartalDay, Wstatus, DinnerAllow, TransAllow, BusAvail, IfFullOT, IsLate, 
+		IsAllowFS, IsAllowTiffin, IsNightShift, IsNextDayOut, IsManual,UserName,UserPass,ComputerName,EntryDate,EntryTime)
+	Select @Comid, @EmpCode, @Date, @ShiftId, @TimeIn, @LateHrs, @TimeOut, @DailyHrs, @ValidOT, @RestOT, @ExtraOT, 
+		@EmpStatus, @DayStatus, @IsHoliday, @IsDayHide, @IsHartalDay, @Wstatus, @DinnerAllow, @TransAllow, @BusAvail, @IfFullOT, @IsLate,
+		@IsAllowFS, @IsAllowTiffin, @IsNightShift, @NextDayOut, @IsManual,@UserName,@UserPass,@ComputerName,@EntryDate,@EntryTime
+
+--	=================== Finally Update To Daily_Attendance_Table
+
+If @EntryMode = 'F' Or @EntryMode = 'S' -- Save into Final Table --
+Begin
+
+	Delete From Emp_Daily_Attendance Where (RegID=@Regid And (DailyDate = @Date))
+
+	Insert Into Emp_Daily_Attendance (Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		TiffAllow, ShiftN, IfFullOT, EmpStatus, DayStatus, BusAvail, TransAllow, DinnerAllow, NextDayOut, AttnStatus,UserName,UserPass,ComputerName,EntryDate,EntryTime,RegID)
+
+	Select 	Distinct A.Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		Case When IsAllowTiffin = 1 Then 'Y' Else 'N' End,		
+		Case When IsNightShift = 1 Then 'Y' Else 'N' End,
+		Case When IfFullOT = 1 Then 'Y' Else 'N' End,
+		Case When (EmpStatus <> '-') And (IsLate = 1) And (IsHoliday = 0) And (DailyHrs>='06:00')  Then 'L'
+		     Else EmpStatus
+		End AS EmpStatus,
+		DayStatus, A.BusAvail, TransAllow, DinnerAllow, 
+		Case When IsNextDayOut = 1 Then 'Y' Else 'N' End,
+		Case When IsManual = 1 Then 'M' Else 'A' End,@UserName,@UserPass,@ComputerName,@EntryDate,@EntryTime,B.RegId
+	From Daily_Attend_Final A Inner Join Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+	Where ((A.Comid = @Comid) And (EmpCode = @EmpCode) And (DailyDate = @Date))
+
+end
+
+If @EntryMode = 'T' -- Save into Temp. Table --
+Begin
+
+	Delete From Emp_Daily_Attendance_Manual Where (RegID=@Regid And (DailyDate = @Date))
+
+	Insert Into Emp_Daily_Attendance_Manual (Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		TiffAllow, ShiftN, IfFullOT, EmpStatus, DayStatus, BusAvail, TransAllow, DinnerAllow, NextDayOut, AttnStatus,UserName,UserPass,ComputerName,EntryDate,EntryTime,RegID)
+
+	Select 	Distinct A.Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		Case When IsAllowTiffin = 1 Then 'Y' Else 'N' End,		
+		Case When IsNightShift = 1 Then 'Y' Else 'N' End,
+		Case When IfFullOT = 1 Then 'Y' Else 'N' End,
+		Case When (EmpStatus <> '-') And (IsLate = 1) And (IsHoliday = 0) And (DailyHrs>='06:00')  Then 'L'
+		     Else EmpStatus
+		End AS EmpStatus,
+		DayStatus, A.BusAvail, TransAllow, DinnerAllow, 
+		Case When IsNextDayOut = 1 Then 'Y' Else 'N' End,
+		Case When IsManual = 1 Then 'M' Else 'A' End,@UserName,@UserPass,@ComputerName,@EntryDate,@EntryTime,B.RegId
+	From Daily_Attend_Final A Inner Join Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+	Where ((A.Comid = @Comid) And (EmpCode = @EmpCode) And (DailyDate = @Date))
+
+End
+
+If @EntryMode = 'B' -- Save into Buyer Table --
+Begin
+
+	Delete From Emp_Daily_AttendanceN Where (RegID=@Regid And (DailyDate = @Date))
+
+	Insert Into Emp_Daily_AttendanceN (Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		TiffAllow, ShiftN, IfFullOT, EmpStatus, DayStatus, BusAvail, TransAllow, DinnerAllow, NextDayOut, AttnStatus,UserName,UserPass,ComputerName,EntryDate,EntryTime,RegID)
+
+	Select 	Distinct A.Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+		Case When IsAllowTiffin = 1 Then 'Y' Else 'N' End,		
+		Case When IsNightShift = 1 Then 'Y' Else 'N' End,
+		Case When IfFullOT = 1 Then 'Y' Else 'N' End,
+		Case When (EmpStatus <> '-') And (IsLate = 1) And (IsHoliday = 0) And (DailyHrs>='06:00')  Then 'L'
+		     Else EmpStatus
+		End AS EmpStatus,
+		DayStatus, A.BusAvail, TransAllow, DinnerAllow, 
+		Case When IsNextDayOut = 1 Then 'Y' Else 'N' End,
+		Case When IsManual = 1 Then 'M' Else 'A' End,@UserName,@UserPass,@ComputerName,@EntryDate,@EntryTime,B.RegId
+	From Daily_Attend_Final A Inner Join Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+	Where ((A.Comid = @Comid) And (EmpCode = @EmpCode) And (DailyDate = @Date))
+
+End
+
+-- INSERT INTO MAIN TABLE
+
+EXEC PRC_AUTO_UPDATE_ATTN
+
+UPDATE A SET REGID=B.REGID
+FROM Emp_Daily_Attendance A Inner Join Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+WHERE A.RegID IS NULL
+
+-- Run M Process
+
+exec prcUpdate_Daily_AttendanceN_EmpWise @RegID,@Date,@Date
+

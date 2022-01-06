@@ -1,0 +1,155 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_Emp_Attn_Summary]    Script Date: 12/24/2018 09:56:46 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[Prc_Emp_Attn_Summary] @ComID Int,@Month VarChar(20),@Year Int,@Dept VarChar(50),@SubDept VarChar(50),@Wstatus VarChar(2),@ChkTbl Int
+AS
+
+-- @Chktable 1=Orginal, 2 =112 Hrs, 3=56 Hrs, 4=Ot, 5=ExtraOT, 6=Advance
+
+-- Exec Prc_Emp_Attn_Summary 5,'APRIL',2018,'','','F',5;
+
+
+Delete From Temp_M_Process_Final Where HostName=HOST_NAME()
+
+CREATE TABLE #TempATTSUM(
+	[ComID] [tinyint] NULL,
+	[DeptName] [nvarchar](100) NULL,
+	[SubDept] [nvarchar](100) NULL,
+	[EmpCode] [nvarchar](15) NULL,
+	[WorkDay] [tinyint] NULL,
+	[AttDay] [real] NULL,
+	[LeaveDay] [real] NULL,
+	[THoliDay] [real] NULL,
+	[AbsDay] [real] NULL,
+	[FoodDay] [real] NULL,
+	[ExtFDay] [real] NULL,
+	[AttBonus] [nvarchar](1) NULL,
+	[OTHrs] [real] NULL,
+	[RestOt] [real] NULL,
+	[OtFDay] [real] NULL,
+	[OtExtF] [real] NULL,
+	[EmpEL] [real] NULL,
+	[EmpCL] [real] NULL,
+	[EmpSL] [real] NULL,
+	[EmpML] [real] NULL,
+	[EmpNP] [real] NULL,
+	[EmpName] [nvarchar](50) NULL,
+	[EmpDesig] [nvarchar](50) NULL,
+	[ComName] [nvarchar](50) NULL,
+	[ComAdd] [nvarchar](100) NULL,
+	[SubHeader] [nvarchar](100) NULL,
+	[TransAllow] [smallint] NULL,
+	[DinnerAllow] [smallint] NULL,
+	[TransDay] [real] NULL,
+	[TransPay] [smallint] NULL,
+	[RegID] [bigint] NULL,
+	[HostName] [nvarchar](30) NULL
+) ON [PRIMARY]
+
+
+--Select @RegID
+
+If @ChkTbl=1
+Begin
+
+Insert  into #TempATTSUM
+SELECT A.ComID,A.Department,A.Section,A.EmployeeCode,NULL,B.AttDay, B.LVDay, B.GHDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, 
+                      OtFDay, OtExtF, EmpEL, EmpCL, EmpSL, EmpML, EmpNP,A.Name,A.Designation,
+       C.Name,C.Address,'FOR THE MONTH OF ' + B.DTMONTH + ', ' + Cast(@Year AS NVarchar) As SubHeader,ISNULL(TransAllow,0),ISNULL(DinnerAllow,0),IsNull(TransDay,0),IsNull(TransDay,0),A.RegId, Host_Name()
+FROM Employee_Information A INNER JOIN Emp_Monthly_AttendN B ON A.RegId=B.RegId
+     Inner Join Company_Information C ON A.ComID=C.ID
+WHERE B.dtMonth=@Month AND B.dtYear=@Year AND A.ComID=@ComID AND A.Wstatus=@Wstatus
+
+End
+
+Else If @ChkTbl=2
+Begin
+
+Insert  into #TempATTSUM
+SELECT A.ComID,A.Department,A.Section,A.EmployeeCode,NULL,B.AttDay, B.LVDay, B.GHDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, 
+                      OtFDay, OtExtF, EmpEL, EmpCL, EmpSL, EmpML, EmpNP,A.Name,A.Designation,
+       C.Name,C.Address,'FOR THE MONTH OF ' + B.DTMONTH + ', ' + Cast(@Year AS NVarchar) As SubHeader,ISNULL(TransAllow,0),ISNULL(DinnerAllow,0),IsNull(TransDay,0),IsNull(TransDay,0),A.RegId, Host_Name()
+FROM Employee_Information A INNER JOIN Emp_Monthly_Attend_12Hrs B ON A.RegId=B.RegId
+     Inner Join Company_Information C ON A.ComID=C.ID
+     Inner Join Month_Name D ON B.dtMonth=D.Month
+WHERE B.dtMonth=@Month AND B.dtYear=@Year AND A.ComID=@ComID AND A.Wstatus=@Wstatus
+
+End
+
+Else If @ChkTbl=3
+Begin
+
+Insert  into #TempATTSUM
+SELECT A.ComID,A.Department,A.Section,A.EmployeeCode,NULL,B.AttDay, B.LVDay, B.GHDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, 
+                      OtFDay, OtExtF, EmpEL, EmpCL, EmpSL, EmpML, EmpNP,A.Name,A.Designation,
+       C.Name,C.Address,'FOR THE MONTH OF ' + B.DTMONTH + ', ' + Cast(@Year AS NVarchar) As SubHeader,ISNULL(TransAllow,0),ISNULL(DinnerAllow,0),IsNull(TransDay,0),IsNull(TransDay,0),A.RegId, Host_Name()
+FROM Employee_Information A INNER JOIN Emp_Monthly_Attend B ON A.RegId=B.RegId
+     Inner Join Company_Information C ON A.ComID=C.ID
+     Inner Join Month_Name D ON B.dtMonth=D.Month
+WHERE B.dtMonth=@Month AND B.dtYear=@Year AND A.ComID=@ComID AND A.Wstatus=@Wstatus
+
+End
+
+Else If @ChkTbl=4
+Begin
+
+Insert  into #TempATTSUM
+SELECT A.ComID,A.Department,A.Section,A.EmployeeCode,NULL,B.AttDay, B.LVDay, B.GHDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, 
+                      OtFDay, OtExtF, EmpEL, EmpCL, EmpSL, EmpML, EmpNP,A.Name,A.Designation,
+       C.Name,C.Address,'FOR THE MONTH OF ' + B.DTMONTH + ', ' + Cast(@Year AS NVarchar) As SubHeader,ISNULL(TransAllow,0),ISNULL(DinnerAllow,0),IsNull(TransDay,0),IsNull(TransDay,0),A.RegId, Host_Name()
+FROM Employee_Information A INNER JOIN Emp_Monthly_AttendOT B ON A.RegId=B.RegId
+     Inner Join Company_Information C ON A.ComID=C.ID
+     Inner Join Month_Name D ON B.dtMonth=D.Month
+WHERE B.dtMonth=@Month AND B.dtYear=@Year AND A.ComID=@ComID AND A.Wstatus=@Wstatus
+
+End
+
+Else If @ChkTbl=5
+Begin
+
+Insert  into #TempATTSUM
+SELECT A.ComID,A.Department,A.Section,A.EmployeeCode,NULL,B.AttDay, B.LVDay, B.GHDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, 
+                      OtFDay, OtExtF, EmpEL, EmpCL, EmpSL, EmpML, EmpNP,A.Name,A.Designation,
+       C.Name,C.Address,'FOR THE MONTH OF ' + B.DTMONTH + ', ' + Cast(@Year AS NVarchar) As SubHeader,ISNULL(TransAllow,0),ISNULL(DinnerAllow,0),IsNull(TransDay,0),IsNull(TransDay,0),A.RegId, Host_Name()
+FROM Employee_Information A INNER JOIN Emp_Monthly_AttendOT_Extra B ON A.RegId=B.RegId
+     Inner Join Company_Information C ON A.ComID=C.ID
+     Inner Join Month_Name D ON B.dtMonth=D.Month
+WHERE B.dtMonth=@Month AND B.dtYear=@Year AND A.ComID=@ComID AND A.Wstatus=@Wstatus
+
+End
+
+
+Else If @ChkTbl=6
+Begin
+
+Insert  into #TempATTSUM
+SELECT A.ComID,A.Department,A.Section,A.EmployeeCode,NULL,B.AttDay, B.LVDay, B.GHDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, 
+                      OtFDay, OtExtF, EmpEL, EmpCL, EmpSL, EmpML, EmpNP,A.Name,A.Designation,
+       C.Name,C.Address,'FOR THE MONTH OF ' + B.DTMONTH + ', ' + Cast(@Year AS NVarchar) As SubHeader,ISNULL(TransAllow,0),ISNULL(DinnerAllow,0),IsNull(TransDay,0),IsNull(TransDay,0),A.RegId, Host_Name()
+FROM Employee_Information A INNER JOIN Advance_Emp_Monthly_Attend B ON A.RegId=B.RegId
+     Inner Join Company_Information C ON A.ComID=C.ID
+     Inner Join Month_Name D ON B.dtMonth=D.Month
+WHERE B.dtMonth=@Month AND B.dtYear=@Year AND A.ComID=@ComID AND A.Wstatus=@Wstatus
+
+End
+
+
+If LEN(@SubDept)>1
+Begin
+Delete From #TempATTSUM Where SubDept<>@SubDept AND HostName=HOST_NAME()
+End
+Else If LEN(@Dept)>1
+Begin
+Delete From #TempATTSUM Where DeptName<>@Dept AND HostName=HOST_NAME()
+End
+
+
+SELECT * FROM #TempATTSUM
+
+Insert Into dbo.Temp_M_Process_Final
+Select *
+From #TempATTSUM

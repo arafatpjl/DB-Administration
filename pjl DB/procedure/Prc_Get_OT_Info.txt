@@ -1,0 +1,150 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_Get_OT_Info]    Script Date: 12/24/2018 10:46:00 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER Procedure [dbo].[Prc_Get_OT_Info] @ComID Int,@Date SmallDateTime,@Department varchar(30),@Section varchar(30)
+
+--	exec Prc_Get_OT_Info 7,'22-Jul-2018','ENGINEERING','ENGINEERING-VBM'
+
+AS
+
+
+
+
+select ComID
+Department,
+Section,
+Designation,
+EmployeeCode as EmpCode,
+Name,
+CONVERT(date, getdate()) as DailyDate,
+cast('' as varchar(50))  as Shift,
+cast('1900-01-01 00:00:00' as datetime)  as OTStart,
+cast(0 as int)  as WeekNo,
+cast('' as varchar(50))  as TotalWeekOT,
+cast(0 as bit)  as WeekLimit,
+cast(0 as int)   MonthNo,
+cast('' as varchar(50))  as TotalMonthOT  ,
+cast(0 as bit)  as MonthLimit,
+Wstatus,
+cast('' as varchar(50))  as Empstatus
+
+Into #Emp_OT_Info
+from Employee_Information  
+ where Department=@Department and Section=@Section  and MLeft=0 and AttOff='N' and ComID =@ComID
+
+ 
+ 
+   --  ************* Day ststus update  *********
+---------------------------------------------------
+ update #Emp_OT_Info set Empstatus='A' 
+ update #Emp_OT_Info set Empstatus='P'   from #Emp_OT_Info 
+Inner join Emp_Daily_Attendance on Emp_Daily_Attendance.EmpCode=#Emp_OT_Info.EmpCode
+where   Emp_Daily_Attendance.DailyDate=@Date and ComID =@ComID;
+
+  --  ************* shift update  *********
+---------------------------------------------------
+
+
+update #Emp_OT_Info set Shift=ShiftID  from #Emp_OT_Info 
+Inner join Employee_Information on EmployeeCode=EmpCode and ComID =@ComID;
+
+update #Emp_OT_Info set Shift=ShiftID  from #Emp_OT_Info 
+Inner join Emp_Transfer_Shift on #Emp_OT_Info.EmpCode=Emp_Transfer_Shift.EmpCode and #Emp_OT_Info.DailyDate=Emp_Transfer_Shift.DailyDate
+  AND Emp_Transfer_Shift.ComID= @ComID;
+--Inner join Emp_Transfer_Shift on #Emp_OT_Info.EmpCode=Emp_Transfer_Shift.EmpCode and #Emp_OT_Info.DailyDate=Emp_Transfer_Shift.DailyDate   ;
+
+  
+   --  ************* shift Name update  *********
+---------------------------------------------------
+--select ShiftIn+BreakHrs+RegHrs,* from Emp_General_Shift
+
+update #Emp_OT_Info set Shift=ShiftName 
+,OTStart=ShiftIn+BreakHrs+RegHrs
+ from #Emp_OT_Info as A 
+Inner join Emp_General_Shift  as B on A.Shift=B.ShiftID  
+
+
+
+
+-- get TotalMonthOT
+---------------------------------
+
+SELECT 
+EmpCode,
+		datepart(month, DailyDate) as Month,
+		Convert(varchar(5), Sum(DateDiff(minute, 0, ValidOT + RestOT +ExtraOT )) / 60)    + ':'
+		+ Convert(char(2), Sum(DateDiff(minute, 0, ValidOT + RestOT +ExtraOT )) % 60)  as TotalOT  
+		into #Emp_OT_Info_Month
+FROM Emp_Daily_Attendance
+where datepart(month, DailyDate) =datepart(month, @Date) and  DailyDate<=@Date and ComID =@ComID
+group by EmpCode,datepart(month, DailyDate)
+order by EmpCode;
+
+
+-- update Month OT
+---------------------------------
+
+update #Emp_OT_Info set MonthNo=Month,
+TotalMonthOT=TotalOT
+FROM #Emp_OT_Info inner join #Emp_OT_Info_Month on #Emp_OT_Info.EmpCode=#Emp_OT_Info_Month.EmpCode;
+
+
+
+-- get Week OT
+---------------------------------
+
+
+-- Value 1 denotes Monday and value 6 denotes the day Saturday
+
+SET DATEFIRST 6;
+
+
+SELECT EmpCode,datepart(week, @Date) as Week,
+   Convert(varchar(5), Sum(DateDiff(minute, 0, ValidOT + RestOT +ExtraOT )) / 60)
+    + ':'
+    + Convert(char(2), Sum(DateDiff(minute, 0, ValidOT + RestOT +ExtraOT )) % 60)  as TotalOT  
+	into #Emp_OT_Info_week
+ FROM  Emp_Daily_Attendance
+where datepart(week, DailyDate) =datepart(week, @Date) and  DailyDate<=@Date and ComID =@ComID
+group by EmpCode,datepart(week, DailyDate)
+order by EmpCode;
+
+
+
+-- update Week OT
+---------------------------------
+
+update #Emp_OT_Info set WeekNo=Week,
+TotalWeekOT=TotalOT
+FROM #Emp_OT_Info inner join #Emp_OT_Info_week on #Emp_OT_Info.EmpCode=#Emp_OT_Info_week.EmpCode;
+
+
+
+ -- convert(datetime,TotalWeekOT)>'1900-01-01 12:00:00'
+
+-- declare @test varchar(25) = '12:35:34'
+
+--select
+-- @test as column_name
+-- , parsename(replace(@test,':','.'),1) as Seconds
+-- ,parsename(replace(@test,':','.'),2) as Minutes
+--  ,parsename(replace(@test,':','.'),3) as Hours
+
+ 
+update #Emp_OT_Info set WeekLimit=case when parsename(replace(TotalWeekOT,':','.'),2)>12 then 1 else 0 end ,
+MonthLimit=case when parsename(replace(TotalMonthOT,':','.'),2) >52  then 1 else 0 end 
+FROM #Emp_OT_Info 
+
+
+
+select *
+ from #Emp_OT_Info
+order by EmpCode,Department,Section,Designation
+
+
+

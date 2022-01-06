@@ -1,0 +1,48 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAttend_Update_Shift_Change]    Script Date: 01/06/2019 11:30:37 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcAttend_Update_Shift_Change]
+as
+
+DELETE A
+FROM Download_Daily_Data A LEFT JOIN Emp_Daily_Attendance B ON A.REGID=B.RegID AND A.DailyDate=B.DailyDate
+WHERE B.RegID IS NULL
+
+UPDATE A SET ShiftN=C.ShiftN
+FROM Download_Daily_Data A INNER JOIN Emp_Transfer_Shift B ON A.REGID=B.RegID AND A.DailyDate=B.DailyDate
+     INNER JOIN Emp_General_Shift C ON B.ShiftID=C.ShiftID
+
+
+UPDATE A SET TimeIn=B.TimeIn,TimeOut=B.TimeOut,IfFullOT=B.IfFullOT
+FROM Download_Daily_Data A INNER JOIN Emp_Daily_Attendance B ON A.REGID=B.RegID AND A.DailyDate=B.DailyDate
+
+    Declare  @Count int,@ComId Int, @EmpCode varchar(15), @Date smallDatetime, @TimeIn smallDateTime, @TimeOut smallDateTime, @IfFullOT Int, @NextDayOut Int ,@UserName nvarchar(100),@UserPass nvarchar(100),@ComputerName nvarchar(100),@EntryDate SmallDateTime,@EntryTime SmallDateTime
+    
+    Declare Cursor_Table scroll cursor
+	for Select ComID,EmpCode,DailyDate,TimeIn,TimeOut,CASE WHEN IfFullOT='Y' THEN 1 ELSE 0 END AS IfFullOT,
+       CASE WHEN ShiftN='Y' THEN 1 ELSE 0 END AS NextDayOut,UserName,UserPass,ComputerName,EntryDate,EntryTime
+	From dbo.Download_Daily_Data
+	
+
+	open Cursor_Table
+	Select @Count = @@Cursor_Rows
+
+	While @Count>0
+	Begin
+		fetch next from Cursor_Table into @ComId, @EmpCode, @Date, @TimeIn, @TimeOut, @IfFullOT, @NextDayOut ,@UserName ,@UserPass,@ComputerName ,@EntryDate,@EntryTime
+		Select  @ComId, @EmpCode, @Date, @TimeIn, @TimeOut, @IfFullOT, @NextDayOut ,@UserName ,@UserPass,@ComputerName ,@EntryDate,@EntryTime
+
+
+--DELETE FROM Emp_Daily_Attendance WHERE ComID=@ComId AND EmpCode=@EmpCode AND DailyDate=@Date
+
+Exec prcAttend_Update_Ind  @ComId, @EmpCode, @Date, @TimeIn, @TimeOut, @IfFullOT, @NextDayOut ,@UserName ,@UserPass,@ComputerName ,@EntryDate,@EntryTime,'S'
+
+	
+	select @Count = @Count - 1
+	End
+	Close Cursor_Table
+	Deallocate Cursor_Table

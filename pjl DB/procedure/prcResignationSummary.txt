@@ -1,0 +1,126 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcResignationSummary]    Script Date: 01/06/2019 15:56:32 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+--	Exec prcResignationSummary 7, '29-MAY-2018', '29-MAY-2018'
+
+ALTER Proc [dbo].[prcResignationSummary] @Comid tinyint, @BRDATE1 datetime, @BRDATE2 DATETIME
+as
+	Declare @EmpCode varchar(10), @BRNO varchar(25), @SLNO int, @BRDATE DATETIME
+	Declare @Count int, @Count2 int
+	Declare @ComName varchar(25)
+----------------------------------------------------
+	Truncate Table tmpResignationSummary
+----------------------------------------------------
+
+Select @ComName = Name From Company_Information Where ID = @Comid  
+
+Declare CURSOR_BRDATE scroll cursor
+for select DISTINCT BRDATE from ResignationMain Where Comid = @Comid and BRDATE BETWEEN @BRDATE1 AND @BRDATE2
+Open CURSOR_BRDATE
+
+select @COUNT2 = @@Cursor_Rows
+
+WHILE @COUNT2 > 0
+BEGIN
+
+	FETCH NEXT FROM CURSOR_BRDATE INTO @BRDATE
+
+--	SELECT @BRDATE, @COUNT2
+
+	Declare cursor_EmpCode scroll cursor
+	for select EmpCode, BRNO, SLNO from ResignationMain Where Comid = @Comid and BRDate = @BRDate
+	Open cursor_EmpCode
+
+	select @Count = @@Cursor_Rows
+
+
+	While @Count>0 
+	begin
+		FETCH NEXT FROM cursor_EmpCode into @EmpCode, @BRNO, @SLNO
+
+--	select @EmpCode, @BRNO, @SLNO
+
+--DecLare @EmpCodeNew NVarChar(20)
+
+	--	Employee Name
+		Declare @EmpName varchar(25), @EmpDesignation varchar(25)
+		Select @EmpName = Name, @EmpDesignation = Designation,@EmpCode=EmployeeCode From Employee_Information Where RegID = @SlNo
+ 
+	--	Main & Wages 
+		Insert tmpResignationSummary (Comid, CompanyName, EmpCode, EmployeeName, BRNO, BRDate, AttAmount, OTAmount,AbsAmount,PIBAmount, FSAmount, ATTBonus, OthersAdd, OthersDeduct)
+		Select @Comid, @ComName, @EmpCode, @EmpName, @BRNO, @BRDate, isnull( Sum( AttAmount ) ,0 ), isnull( Sum( OTAmount ) ,0 ),isnull( Sum( AbsAmount ) ,0 ),isnull( Sum( PIBAmount ) ,0 ), isnull( Sum( FoodSubAmount ) ,0 ), isnull( Sum( AttBonus ) ,0 ), isnull( Sum( Others ) ,0 ), isnull( Sum( Deduct ) ,0 )
+		From ResignationWages where SLNO = @SLNO
+		
+--SELECT @EmpCode
+
+--UPDATE     dbo.tmpResignationSummary SET AbsAmount=0 --dbo.Salary_And_Wages.AbsAmount
+--FROM         dbo.ResignationMain INNER JOIN
+--                      dbo.ResignationWages ON dbo.ResignationMain.SLNo = dbo.ResignationWages.SLNO INNER JOIN
+--                      dbo.Salary_And_Wages ON dbo.ResignationMain.ComID = dbo.Salary_And_Wages.ComID AND 
+--                      dbo.ResignationMain.EmpCode = dbo.Salary_And_Wages.EmployeeCode AND dbo.ResignationWages.SYear = dbo.Salary_And_Wages.Year AND 
+--                      dbo.ResignationWages.SMonth = dbo.Salary_And_Wages.Month INNER JOIN
+--                      dbo.tmpResignationSummary ON dbo.ResignationMain.ComID = dbo.tmpResignationSummary.COMID AND 
+--                      dbo.ResignationMain.EmpCode = dbo.tmpResignationSummary.EMPCODE
+
+
+	--	Designation
+		Update tmpResignationSummary
+		set Designation = @EmpDesignation
+		Where EmpCode = @EmpCode
+
+	--	EL 
+		Declare @ELAmount money
+		Select @ELAmount = isnull( Sum( Amount), 0) From ResignationEL Where SLNO = @SLNO
+		Update tmpResignationSummary
+		set ELAmount = @ELAmount
+		Where EmpCode = @EmpCode
+
+	--	Others
+		Declare @SPBA money, @NBA money, @SBA Money, @FBA Money
+		Select @SPBA = isnull( Sum( SpecialBasicAmount), 0), @NBA = isnull( Sum( NoticeBasicAmount ), 0), @SBA = isnull( Sum( ServiceBasicAmount ), 0), @FBA = isnull( Sum( FestivalBasicAmount ), 0) 
+		From ResignationOthers Where SLNO = @SLNO
+
+		Update tmpResignationSummary
+		set SPBAmount = @SPBA, NBAmount = @NBA, SERBAmount = @SBA, FBAmount = @FBA
+		Where EmpCode = @EmpCode
+
+	--	Deduction Amount A/C
+		Declare @DAmount money
+		Select @DAmount = isnull( Sum( DeductionAmount), 0) From ResignationDeduct Where SLNO = @SLNO
+
+		Update tmpResignationSummary
+		set DeductAmountA = @DAmount
+		Where EmpCode = @EmpCode	
+
+
+	--	Deduction Amount Worker
+		Select @DAmount = isnull( Sum( DeductionAmount), 0) From ResignationDeduct Where SLNO = @SLNO and StatusWorker = 1
+
+		Update tmpResignationSummary
+		set DeductAmountW = @DAmount
+		Where EmpCode = @EmpCode	
+
+	--	Addition Amount 
+		Declare @AddAmount money
+		Select @AddAmount = isnull( Sum( AdditionAmount), 0) From ResignationAdd Where SLNO = @SLNO 
+
+		Update tmpResignationSummary
+		set ADDITIONAMOUNT = @AddAmount
+		Where EmpCode = @EmpCode	
+
+	select @Count = @Count - 1
+	end
+
+	close cursor_EmpCode
+	deallocate cursor_EmpCode
+
+SELECT @COUNT2 = @COUNT2 - 1
+END
+
+close cursor_BRDATE
+deallocate cursor_BRDATE

@@ -1,0 +1,145 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Leftrequitmentsum]    Script Date: 12/24/2018 09:42:12 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[Leftrequitmentsum] @Comid tinyInt, @month1 int, @year1 int,@month VARCHAR(15), @year VARCHAR(15), @EMPSTATUS CHAR(1)
+as
+
+
+
+
+begin
+DROP view VIEW1
+DROP view VIEW5
+
+end
+
+begin
+  Exec ('create View VIEW1
+	as
+
+SELECT     TOP 100 PERCENT dbo.Employee_Information.ComID, dbo.Employee_Information.Designation, dbo.Employee_Information.[Section], 
+                      dbo.Employee_Information.Department, dbo.Employee_Information.JoiningDate, COUNT(dbo.Employee_Information.EmployeeCode) AS total, 
+                      dbo.Employee_Information.LeftDate, dbo.Employee_Information.MLeft, dbo.Designationclass.ClassDesigntotal, 
+                      dbo.Designationclass.Classdesignation, 1 AS sign
+FROM         dbo.Employee_Information INNER JOIN
+                      dbo.Designationclass ON dbo.Employee_Information.ComID = dbo.Designationclass.Comid AND 
+                      dbo.Employee_Information.Department = dbo.Designationclass.Department AND 
+                      dbo.Employee_Information.[Section] = dbo.Designationclass.[Section] AND 
+                      dbo.Employee_Information.Designation = dbo.Designationclass.Designation
+WHERE     (dbo.Employee_Information.MLeft = 1) AND (DATEPART(mm, dbo.Employee_Information.LeftDate) = '+@month1+') AND (DATEPART(yy, 
+                      dbo.Employee_Information.LeftDate) ='+@year1+') AND (dbo.Employee_Information.ComID = '+@comid+')
+GROUP BY dbo.Employee_Information.ComID, dbo.Employee_Information.Designation, dbo.Employee_Information.[Section], 
+                      dbo.Employee_Information.Department, dbo.Employee_Information.JoiningDate, dbo.Employee_Information.LeftDate, 
+                      dbo.Employee_Information.MLeft, dbo.Designationclass.ClassDesigntotal, dbo.Designationclass.Classdesignation
+UNION
+SELECT     TOP 100 PERCENT dbo.Employee_Information.ComID, dbo.Employee_Information.Designation, dbo.Employee_Information.[Section], 
+                      dbo.Employee_Information.Department, dbo.Employee_Information.JoiningDate, COUNT(dbo.Employee_Information.EmployeeCode) AS total, 
+                      dbo.Employee_Information.LeftDate, dbo.Employee_Information.MLeft, dbo.Designationclass.ClassDesigntotal, 
+                      dbo.Designationclass.Classdesignation, 0 AS sign
+FROM         dbo.Employee_Information INNER JOIN
+                      dbo.Designationclass ON dbo.Employee_Information.ComID = dbo.Designationclass.Comid AND 
+                      dbo.Employee_Information.Department = dbo.Designationclass.Department AND 
+                      dbo.Employee_Information.[Section] = dbo.Designationclass.[Section] AND 
+                      dbo.Employee_Information.Designation = dbo.Designationclass.Designation
+WHERE     (dbo.Employee_Information.MLeft = 0) AND (DATEPART(mm, dbo.Employee_Information.joiningdate) = '+@month1+') AND (DATEPART(yy, 
+                      dbo.Employee_Information.joiningdate) = '+@year1+') AND (dbo.Employee_Information.ComID = '+@comid+')
+GROUP BY dbo.Employee_Information.ComID, dbo.Employee_Information.Designation, dbo.Employee_Information.[Section], 
+                      dbo.Employee_Information.Department, dbo.Employee_Information.JoiningDate, dbo.Employee_Information.LeftDate, 
+                      dbo.Employee_Information.MLeft, dbo.Designationclass.ClassDesigntotal, dbo.Designationclass.Classdesignation
+
+')
+
+End 
+
+
+
+begin 
+exec('create view VIEW5
+as
+
+
+SELECT DISTINCT 
+                      dbo.Designationclass.ClassDesigntotal, 1 AS sign, COUNT(dbo.Salary_And_Wages.EmployeeCode) AS total, dbo.Designationclass.Department, 
+                      dbo.Designationclass.[Section], dbo.Salary_And_Wages.[Month], dbo.Salary_And_Wages.[Year]
+FROM         dbo.Employee_Information INNER JOIN
+                      dbo.Designationclass ON dbo.Employee_Information.ComID = dbo.Designationclass.Comid AND 
+                      dbo.Employee_Information.Department = dbo.Designationclass.Department AND 
+                      dbo.Employee_Information.[Section] = dbo.Designationclass.[Section] AND 
+                      dbo.Employee_Information.Designation = dbo.Designationclass.Designation INNER JOIN
+                      dbo.Salary_And_Wages ON dbo.Employee_Information.ComID = dbo.Salary_And_Wages.ComID AND 
+                      dbo.Employee_Information.WStatus = dbo.Salary_And_Wages.Wstatus AND 
+                      dbo.Designationclass.Department = dbo.Salary_And_Wages.DeptName AND 
+                      dbo.Designationclass.[Section] = dbo.Salary_And_Wages.SubDeptName AND 
+                      dbo.Employee_Information.EmployeeCode = dbo.Salary_And_Wages.EmployeeCode
+WHERE     (dbo.Salary_And_Wages.[Month] = '''+@month+''') AND (dbo.Salary_And_Wages.[Year] = '''+@year+''') AND (dbo.Employee_Information.ComID = '+@comid+') AND 
+                      (dbo.Employee_Information.WStatus = '''+@EMPSTATUS+''')
+GROUP BY dbo.Designationclass.ClassDesigntotal, dbo.Designationclass.Department, dbo.Designationclass.[Section], dbo.Salary_And_Wages.[Month], 
+                      dbo.Salary_And_Wages.[Year]
+
+')
+End
+
+
+
+begin
+
+delete from helpoptJL
+
+
+end
+
+
+
+
+begin
+
+INSERT INTO helpoptJL (ComId,DEPARTMENT,SECTION,SIGN,CLASSDESIGNTOTAL,TOTALJL,TOTALEMP)
+SELECT     ComID, Department, [Section], sign, ClassDesigntotal, SUM(total) AS TOTAL, 0 AS Expr1
+FROM         VIEW1
+GROUP BY ComID, Department, [Section], sign, ClassDesigntotal
+
+end
+
+
+--UPDATE    helpoptJL
+--SET              totalemp = dbo.VIEW5.total, month=dbo.VIEW5.[Month], year = dbo.VIEW5.[Year]
+--FROM         dbo.VIEW5 INNER JOIN
+ --                     dbo.helpoptJL ON dbo.VIEW5.Department = dbo.helpoptJL.Department AND dbo.VIEW5.[Section] = dbo.helpoptJL.[Section] AND 
+ --                     dbo.VIEW5.ClassDesigntotal = dbo.helpoptJL.ClassDesigntotal
+
+
+UPDATE    helpoptJL
+SET              totalemp = dbo.VIEW5.total
+FROM         dbo.VIEW5 INNER JOIN
+                      dbo.helpoptJL ON dbo.VIEW5.Department = dbo.helpoptJL.Department AND dbo.VIEW5.[Section] = dbo.helpoptJL.[Section] AND 
+                      dbo.VIEW5.ClassDesigntotal = dbo.helpoptJL.ClassDesigntotal
+
+
+UPDATE    helpoptJL
+SET              month= @month , year =  @year 
+
+
+
+
+
+
+--DELETE FROM TEMPRPTTABLE
+
+INSERT INTO Temprpttable (ComId,year,month,sign,Typeho,LRemp,TOTALEMP)
+SELECT     ComID, year, month, sign, ClassDesigntotal, SUM(totaljl), SUM(totalemp)
+FROM         helpoptJL
+GROUP BY ComID,year,month,sign,ClassDesigntotal
+
+
+
+
+
+--begin
+--DROP view VIEW1
+--DROP view VIEW1
+--end
+

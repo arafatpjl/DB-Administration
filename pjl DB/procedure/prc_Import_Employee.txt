@@ -1,0 +1,174 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prc_Import_Employee]    Script Date: 12/24/2018 10:46:25 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER PROC [dbo].[prc_Import_Employee]  
+AS 
+
+--  exec prc_Import_Employee 
+
+
+SET FMTONLY OFF
+  --declare @COMID int
+---------------------------------
+
+--DROP TABLE #tbl_Import_Employee
+
+SELECT  
+ 0 As RegID,
+ --ROW_NUMBER() OVER(ORDER BY EmployeeCode) AS Sl,
+ B.ID as ComID,
+ OLD_ID, 
+ 'MGT-' + Cast(EMPLOYEECODE As NVarchar) EMPLOYEECODE,
+ A.NAME,
+ --FATHERSNAME,
+ case when FATHERSNAME='' then NULL else FATHERSNAME end as FATHERSNAME,
+ cast (AGE as tinyint)as AGE ,
+ cast(CONVERT(date,BIRTHDATE,103)as smalldatetime) as BIRTHDATE,
+ --case when RELIGION='' then NULL else RELIGION end as RELIGION,
+ case when RELIGION='' then NULL when RELIGION='MUSLIM' Then 'ISLAM' else RELIGION end as RELIGION,
+ --PREADDRESS,
+ case when PREADDRESS='' then NULL else PREADDRESS end as PREADDRESS,
+ case when PERADDRESS='' then NULL else PERADDRESS end as PERADDRESS,
+ case when NID='' then NULL else NID end as NID,
+ --PHONE,
+ case when PHONE='' then NULL else PHONE end as PHONE,
+ case when DISTRICT='' then NULL else DISTRICT end as DISTRICT,
+ CONVERT(date,JOININGDATE,103) as JOININGDATE,
+ case when DEPARTMENT='' then NULL else DEPARTMENT end as DEPARTMENT,
+ --case when SECTION='' then NULL else SECTION end as SECTION,
+ SECTION,
+ case when DESIGNATION='' then NULL else DESIGNATION end as DESIGNATION,
+ case when DESIGADDI='' then NULL else UPPER(DESIGADDI) end as DESIGADDI,
+ convert(float,OPENRATE) as OPENRATE,
+ convert(float,CURRRATE) as CURRRATE,
+ case when MOTHERSNAME='' then NULL else MOTHERSNAME end as MOTHERSNAME,
+ case when SPOUSENAME='' then NULL else SPOUSENAME end as HUSBANDNAME,
+ case when SEX='' then NULL else SEX end as SEX,
+ case when REMARKS='' then NULL else REMARKS end as REMARKS,
+ MLEAVE,
+ MLEFT,
+ case when REASON='' then NULL else REASON end as REASON,
+ case when BUSSTOP='' then NULL else BUSSTOP end as BUSSTOP,
+ case when BUSLINE='' then NULL else BUSLINE end as BUSLINE,
+ Case when WSTATUS='Senior Management' then 'S'
+ WHEN WSTATUS='Junior Management' THEN 'J'
+ Else 'S'
+ end
+ as WSTATUS,
+ case when BLOODGROUP='' then NULL else BLOODGROUP end as BLOODGROUP,
+ EMPATTID,
+ BEPZAID,
+ case when BUSAVAIL='' OR BUSAVAIL IS Null then 'Y' else BUSAVAIL end as BUSAVAIL,
+ CONVERT(date,JOININGDATE,103) BUSAVAILDATE,--cast(CONVERT(VARCHAR,BUSAVAILDATE,106)as datetime) as BUSAVAILDATE,
+ 'N' ATTOFF,
+ 1 SHIFTID,
+ CONVERT(date,JOININGDATE,103) APPDATE,--cast(CONVERT(VARCHAR,APPDATE,106)as datetime) as APPDATE,
+ 2 EMPLVID,
+ FRACPAY,
+ FRACPAYOT,
+ '01-Jan-1900' LEFTDATE,--cast(CONVERT(VARCHAR,LEFTDATE,106)as datetime) as LEFTDATE,
+ cast (EXPERIENCE as int)as EXPERIENCE ,
+ cast (CORPEMP as int)as CORPEMP ,
+ case when WORKCENTER='' then NULL else WORKCENTER end as WORKCENTER
+
+into #tbl_Import_Employee
+FROM    tbl_Import_Employee A Inner Join Company_Information_New B On A.Company=B.ComShortName
+
+Update B Set Regid=A.RegID
+from dbo.Employee_Information as A
+     INNER JOIN #tbl_Import_Employee as B ON Replace(A.EmployeeCode,'MGT-','')=Replace(B.EmployeeCode,'MGT-','')
+Where A.WStatus IN ('J','S')
+     
+Update B Set Regid=A.RegID
+from dbo.Employee_Information as A
+     INNER JOIN #tbl_Import_Employee as B ON A.ComID=B.ComID AND A.EmployeeCode=B.OLD_ID 
+Where B.Regid=0
+
+Update #tbl_Import_Employee Set NID='NS' WHERE NID is Null AND REGID=0
+
+Update #tbl_Import_Employee Set BloodGroup='UnKnown' WHERE BloodGroup is Null AND REGID=0
+
+Update B Set DEPARTMENT=A.DeptName,SECTION=COALESCE(A.SubDeptName,Substring(B.WorkCENTER,5,50),A.DeptName)
+from dbo.Sub_Dept_Name_HCM as A
+     INNER JOIN #tbl_Import_Employee as B ON A.ERP_DEPARTMENT=Substring(B.DEPARTMENT,5,50) AND A.ERP_COST_CENTER=Substring(B.SECTION,5,50)
+Where A.Erp_Work_Center Is Null
+
+Update B Set DEPARTMENT=A.DeptName,SECTION=A.SubDeptName
+from dbo.Sub_Dept_Name_HCM as A Inner Join (Select * From dbo.Sub_Dept_Name_HCM Where Erp_Work_Center is Null)
+     C ON A.ERP_DEPARTMENT=C.ERP_DEPARTMENT AND A.ERP_COST_CENTER=C.ERP_COST_CENTER
+     INNER JOIN #tbl_Import_Employee as B ON C.DeptName=B.DepARTMENT
+     AND C.SubDeptName=B.SECTION AND A.ERP_Work_CENTER=Substring(B.WorkCENTER,5,50)
+Where A.Erp_Work_Center Is Not Null
+
+Update #tbl_Import_Employee Set WorkCENTER='N/A' Where WorkCENTER='' Or WorkCENTER Is Null
+
+Update B Set BUSLINE=A.BusLine
+from dbo.Busline as A
+     INNER JOIN #tbl_Import_Employee as B ON A.Busstation=B.BUSSTOP
+     
+
+Update #tbl_Import_Employee Set BUSLINE='NONE',BUSSTOP='NONE',BusAvail='N',BusAvailDate='01-Jan-1900' Where BUSLINE='' Or BUSLINE Is Null
+
+Update #tbl_Import_Employee Set Age=Floor(DATEDIFF(DD,BIRTHDATE,GETDATE()+1)/365.25)     
+     
+
+--Select * From #tbl_Import_Employee Where Regid=0--WHERE SECTION IS NULL OR SECTION=''
+
+--Select Regid From #tbl_Import_Employee Where Regid<>0  GROUP BY REGID HAVING COUNT(*)>1
+
+
+ update A set A.ComID=B.ComID,A.EmployeeCode=B.EmployeeCode,A.NAME=COALESCE(B.NAME,A.NAME),
+ A.FATHERSNAME=COALESCE(B.FATHERSNAME,A.FATHERSNAME),A.AGE=COALESCE(B.AGE,A.AGE),
+ A.Religion=COALESCE(B.RELIGION,A.RELIGION),A.PreAddress=COALESCE(B.PREADDRESS,A.PREADDRESS),
+ A.PERADDRESS=COALESCE(B.PERADDRESS,A.PERADDRESS) ,A.DISTRICT=COALESCE(B.DISTRICT,A.DISTRICT),
+ A.NID=COALESCE(B.NID,A.NID),A.Phone=COALESCE(B.Phone,A.Phone),
+ A.JoiningDate=COALESCE(B.JoiningDate,A.JOININGDATE),A.Department=COALESCE(B.Department,A.DEPARTMENT),
+ A.SECTION=COALESCE(B.Section,A.SECTION),A.DESIGNATION=COALESCE(B.Designation,A.Designation),
+ A.DESIGADDI=COALESCE(B.DesigAddi,A.DesigAddi),A.OpenRate=COALESCE(B.OpenRate,A.OpenRate),
+ A.CURRRATE=COALESCE(B.CurrRate,A.CurrRate),A.MOTHERSNAME=COALESCE(B.MothersName,A.MothersName),
+ A.HUSBANDNAME=COALESCE(B.HusbandName,A.HusbandName),A.SEX=COALESCE(B.Sex,A.Sex),
+ A.BUSSTOP=COALESCE(B.BusStop,A.BusStop),A.BUSLINE=COALESCE(B.BusLine,A.BusLine),A.WSTATUS=COALESCE(B.WStatus,A.WStatus),
+ A.BLOODGROUP=COALESCE(B.BloodGroup,A.BloodGroup), A.BUSAVAIL=COALESCE(B.BusAvail,A.BusAvail),
+ A.BUSAVAILDATE=COALESCE(B.BusAvailDate,A.BusAvailDate),A.LEFTDATE=COALESCE(B.LeftDate,A.LeftDate),
+ A.CORPEMP=COALESCE(B.CorpEmp,A.CorpEmp),A.Work_Center=COALESCE(B.WORKCENTER,A.Work_Center)
+ from dbo.Employee_Information as A
+ INNER JOIN #tbl_Import_Employee as B ON A.RegId=B.REGID 
+ WHERE A.WStatus IN ('S','J') AND A.MLeft=0
+
+
+
+
+
+insert into EMSMAIN.dbo.Employee_Information_EMS(
+RegID,ComID,EmployeeCode,Name,FathersName,Age,BirthDate,Religion,PreAddress,PerAddress,NID,Phone,DISTRICT,JoiningDate,Department,Section,Designation
+,DesigAddi,OpenRate,CurrRate,MothersName,HusbandName,Sex,Remarks,MLeave,MLeft,Reason,BusStop,BusLine,WStatus,BloodGroup
+,EmpAttID,BepzaID,BusAvail,BusAvailDate,AttOff,ShiftID,AppDate,EmpLVID,FracPay,FracPayOT,LeftDate,Experience
+)
+select 
+(Select MAX(RegID) From EMSMAIN.dbo.Employee_Information_EMS) + ROW_NUMBER() OVER(ORDER BY EmployeeCode) AS Regid,ComID,EMPLOYEECODE,NAME ,FATHERSNAME,AGE,BIRTHDATE,RELIGION,PREADDRESS,PERADDRESS,NID,PHONE,DISTRICT,
+JOININGDATE,DEPARTMENT,SECTION,DESIGNATION,DESIGADDI,OPENRATE,CURRRATE,MOTHERSNAME,HUSBANDNAME,SEX,REMARKS,
+MLEAVE,MLEFT,REASON,BUSSTOP,BUSLINE,WSTATUS,BLOODGROUP,EMPATTID,BEPZAID,BUSAVAIL,BUSAVAILDATE,ATTOFF,SHIFTID,
+APPDATE,EMPLVID,FRACPAY,FRACPAYOT,LEFTDATE,EXPERIENCE
+from #tbl_Import_Employee 
+where RegID=0
+order by EMPLOYEECODE
+ 
+insert into dbo.Employee_Information(
+RegID,ComID,EmployeeCode,Name,FathersName,Age,BirthDate,Religion,PreAddress,PerAddress,NID,Phone,DISTRICT,JoiningDate,Department,Section,Designation
+,DesigAddi,OpenRate,CurrRate,MothersName,HusbandName,Sex,Remarks,MLeave,MLeft,Reason,BusStop,BusLine,WStatus,BloodGroup
+,EmpAttID,BepzaID,BusAvail,BusAvailDate,AttOff,ShiftID,AppDate,EmpLVID,FracPay,FracPayOT,LeftDate,Experience,CorpEmp,Work_Center
+)
+select 
+B.Regid,A.ComID,A.EMPLOYEECODE,A.NAME ,A.FATHERSNAME,A.AGE,A.BIRTHDATE,A.RELIGION,A.PREADDRESS,A.PERADDRESS,A.NID,A.PHONE,A.DISTRICT,A.
+JOININGDATE,A.DEPARTMENT,A.SECTION,A.DESIGNATION,A.DESIGADDI,A.OPENRATE,A.CURRRATE,A.MOTHERSNAME,A.HUSBANDNAME,A.SEX,A.REMARKS,A.
+MLEAVE,A.MLEFT,A.REASON,A.BUSSTOP,A.BUSLINE,A.WSTATUS,A.BLOODGROUP,A.EMPATTID,A.BEPZAID,A.BUSAVAIL,A.BUSAVAILDATE,A.ATTOFF,A.SHIFTID,A.
+APPDATE,A.EMPLVID,A.FRACPAY,A.FRACPAYOT,A.LEFTDATE,A.EXPERIENCE ,A.CORPEMP,A.WORKCENTER
+from #tbl_Import_Employee A Inner Join EMSMAIN.dbo.Employee_Information_EMS B On A.Comid=B.ComID AND A.EmployeeCode=B.EmployeeCode
+where A.RegID=0
+ order by EMPLOYEECODE

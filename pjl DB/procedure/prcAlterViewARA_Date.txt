@@ -1,0 +1,75 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlterViewARA_Date]    Script Date: 01/06/2019 10:50:47 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+--	prcAlterViewARA_Date 5, 'SEWING', ''
+--	prcAlterViewARA_Date 1, 'SEWING', ''
+--	Select * from viewARA_Date Order By ComId, Department, Section, EmployeeCode
+
+ALTER Proc [dbo].[prcAlterViewARA_Date] @ComId tinyInt, @Department varchar(50), @Section Varchar(50)
+as
+IF @Section <>'' 
+Begin
+	Exec ('Alter view viewARA_Date as
+		Select Distinct A.ComId, E.Name AS ComName, E.Address AS ComAddress, A.Department, A.Section, 
+		A.EmployeeCode, A.Name AS EmployeeName, A.WStatus
+		from employee_Information AS A
+		Inner Join viewDayStatus_ARA AS B On A.ComId = B.ComId 
+		Left Outer Join 
+		(
+			Select ComId, DailyDate, EmpCode 
+			from Emp_Daily_Attendance
+		)AS C On A.ComId = C.ComId and A.EmployeeCode = C.EmpCode and B.prDate = C.DailyDate
+		Inner Join
+		(
+			Select M.ComId, M.EmployeeCode, N.WkNO, Count(O.DailyDate)As NoPresentDay
+			from employee_Information AS M
+			Inner Join viewDayStatus_ARA AS N On M.ComId = N.ComId 
+			Left Outer Join 
+			(
+				Select ComId, DailyDate, EmpCode 
+				from Emp_Daily_Attendance
+			)AS O On M.ComId = O.ComId and M.EmployeeCode = O.EmpCode and N.prDate = O.DailyDate
+			Where ((M.Comid = '+ @ComId +') and (M.Department = '''+ @Department +''') and (M.Section = '''+ @Section +''') AND (M.MLEFT = 0))
+			Group By M.ComId, M.EmployeeCode, N.WkNO
+			Having Count(O.DailyDate) = 0
+		)AS D On A.ComId = D.ComId and A.EmployeeCode = D.EmployeeCode and B.WKNO = D.WkNo
+		Inner Join Company_Information AS E on A.ComId = E.Id
+		Where ((A.Comid = '+ @ComId +') and (A.Department = '''+ @Department +''') and (A.Section = '''+ @Section +''') AND (A.MLEFT = 0))
+	')
+End
+Else
+Begin
+	Exec ('Alter view viewARA_Date as
+		Select Distinct A.ComId, E.Name AS ComName, E.Address AS ComAddress, A.Department, A.Section, 
+		A.EmployeeCode, A.Name AS EmployeeName, A.WStatus
+		from employee_Information AS A
+		Inner Join viewDayStatus_ARA AS B On A.ComId = B.ComId 
+		Left Outer Join 
+		(
+			Select ComId, DailyDate, EmpCode 
+			from Emp_Daily_Attendance
+		)AS C On A.ComId = C.ComId and A.EmployeeCode = C.EmpCode and B.prDate = C.DailyDate
+		Inner Join
+		(
+			Select M.ComId, M.EmployeeCode, N.WkNO, Count(O.DailyDate)As NoPresentDay
+			from employee_Information AS M
+			Inner Join viewDayStatus_ARA AS N On M.ComId = N.ComId 
+			Left Outer Join 
+			(
+				Select ComId, DailyDate, EmpCode 
+				from Emp_Daily_Attendance
+			)AS O On M.ComId = O.ComId and M.EmployeeCode = O.EmpCode and N.prDate = O.DailyDate
+			Where ((M.Comid = '+ @ComId +') and (M.Department = '''+ @Department +''') AND (M.MLEFT = 0))
+			Group By M.ComId, M.EmployeeCode, N.WkNO
+			Having Count(O.DailyDate) = 0
+		)AS D On A.ComId = D.ComId and A.EmployeeCode = D.EmployeeCode and B.WKNO = D.WkNo
+		Inner Join Company_Information AS E on A.ComId = E.Id
+		Where ((A.Comid = '+ @ComId +') and (A.Department = '''+ @Department +''') AND (A.MLEFT = 0))
+	')
+End
+
+

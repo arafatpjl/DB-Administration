@@ -1,0 +1,165 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_Emp_Job_Card_NEW]    Script Date: 12/24/2018 10:00:28 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER Proc [dbo].[Prc_Emp_Job_Card_NEW] @MonthID Int,@Year Int,@RegID VarChar(8000),@ChkPrev Int
+AS
+
+Declare @q Nvarchar(4000)
+
+-- Exec Prc_Emp_Job_Card_NEW 04,'2018','27280,27287,27290,27294,27298,27300,27307',0;
+
+Delete From Temp_Job_Card_Final_New2 Where HostName=HOST_NAME()
+
+Delete From Temp_Job_Card_Sub_New2 Where HostName=HOST_NAME()
+
+CREATE TABLE #TempJobCard(
+	[ComID] [tinyint] NULL,
+	[EmpCode] [nvarchar](30) NOT NULL,
+	[RegID] [BigInt] NOT NULL,
+	[WStatus] [nvarchar](1) NULL,
+	[EmpName] [nvarchar](50) NULL,
+	[EmpDesig] [nvarchar](50) NULL,
+	[JoinDate] [smalldatetime] NULL,
+	[DeptName] [nvarchar](50) NULL,
+	[SubDept] [nvarchar](50) NULL,
+	[ComName] [nvarchar](50) NULL,
+	[SubHeader] [nvarchar](50) NULL,
+	[AttOff] [nvarchar](1) NOT NULL,
+	[AttOffDate] [smalldatetime] NULL,
+	[HostName] [nvarchar](20) NOT NULL,
+	[DailyDate] [smalldatetime] NULL,
+	[TimeIn] [smalldatetime] NULL,
+	[TimeOut] [smalldatetime] NULL,
+	[LateHrs] [smalldatetime] NULL,
+	[DailyHrs] [smalldatetime] NULL,
+	[ValidOT] [smalldatetime] NULL,
+	[RestOT] [smalldatetime] NULL,
+	[ExtraOT] [smalldatetime] NULL,
+	[TiffAllow] [nvarchar](1) NULL,
+	[ShiftN] [nvarchar](10) NULL,
+	[IfFullOT] [nvarchar](1) NULL,
+	[BusAvail] [nvarchar](10) NULL,
+	[EmpStatus] [nvarchar](50) NULL,
+	[DayStatus] [nvarchar](50) NULL,
+	[DayHide] [nvarchar](1) NULL,
+	[TransAllow] [smallint] NOT NULL,
+	[DinnerAllow] [smallint] NOT NULL,
+	[ShiftName] [nvarchar](20) NULL,
+	[OtExtF] [int] NULL
+) ON [PRIMARY]
+
+--Select @RegID
+
+CREATE TABLE #TempRegID(
+	[RegID] [BigInt]
+) ON [PRIMARY]
+
+Insert Into #TempRegID
+SELECT splitdata AS RegID FROM dbo.fnSplitString((@RegID),',')
+
+
+Delete A From Temp_Job_Card_Final_New2 A Inner Join #TempRegID B On A.REGID= B.RegID --Or HostName=HOST_NAME()
+
+Delete A From Temp_Job_Card_Sub_New2 A Inner Join #TempRegID B On A.REGID= B.RegID --Or HostName=HOST_NAME()
+
+
+Insert  into #TempJobCard
+SELECT A.ComID,A.EmployeeCode,A.RegId,A.WStatus,A.Name,A.Designation,A.JoiningDate,A.Department,A.Section,C.Name AS ComName,
+       'FOR THE MONTH OF ' + D.MONTH + ', ' + Cast(PrYear AS NVarchar) As SubHeader, A.AttOff,'01-Jan-1900' As AttOfDate,HOST_NAME()
+       As HostName, B.prDate,'00:00' AS TimeIn,'00:00' AS TimeOUT,'00:00' AS LATEHRS,'00:00' AS DailyHrs,'00:00' AS ValidOT,
+       '00:00' AS RestOT,'00:00' AS ExtraOT,'N' As TiffAllow,'N' As ShiftN,'N' As IfFullOT,A.BusAvail,Case When B.prDate<A.JoiningDate
+       Then 'NA' When B.prDate>=A.JoiningDate And B.Holiday=1 Then B.Status Else 'A' End EmpStatus, B.Status DayStatus,'N' DayHide,0 TransAllow,0 DinnerAllow,'GENERAL' ShiftName,0
+FROM Employee_Information A Inner Join #TempRegID E On A.RegId=E.RegID
+     Inner Join Company_Information C ON A.ComID=C.ID Cross Join Daily_Process_Status B
+     Inner Join Month_Name D ON B.prMonth=D.SLNo
+WHERE prMonth=@MonthID AND prYear=@Year
+
+
+Update A Set DayStatus='R',EmpStatus='A'
+From #TempJobCard A Inner Join Emp_Day_Off_Entry B On A.RegID=B.RegId AND A.DailyDate=B.DateWH
+
+Update A Set DayStatus=B.Status,EmpStatus=B.Status
+From #TempJobCard A Inner Join Emp_Day_Off_Entry B On A.RegID=B.RegId AND A.DailyDate=B.DateOff
+
+--Update #TempJobCard Set EmpStatus='NA' Where DailyDate>=AttOffDate
+
+Update A Set AttOffDate=B.DailyDate
+From #TempJobCard A Inner Join Emp_Daily_Off_On B On A.REGID=B.RegID
+
+
+If @ChkPrev=1
+
+Begin
+
+If LEN(@MonthID)<2
+Begin
+SET @q = 'Update A Set TimeIn=B.TimeIn,TimeOut=B.TimeOut,LateHrs=B.LateHrs,DAILYHRS=B.DailyHrs,VALIDOT=B.ValidOT+B.RestOT,EXTRAOT=B.ExtraOT,
+       TiffAllow=B.TiffAllow,ShiftN=B.ShiftN,IFFULLOT=B.IfFullOT,EMPSTATUS=B.EmpStatus,DAYSTATUS=B.DayStatus,TransAllow=B.TransAllow,
+       DinnerAllow=B.DinnerAllow
+From #TempJobCard A Inner Join Back_PacPay.dbo.Emp_Daily_Attend_0' + CAST(@MonthID As VarChar) + CAST(RIGHT(@YEAR,2) AS VARCHAR) + ' B On A.REGID=B.RegID And A.DailyDate=B.DailyDate';
+	
+Exec ('' + @q + '')
+End
+
+Else
+
+Begin
+SET @q = 'Update A Set TimeIn=B.TimeIn,TimeOut=B.TimeOut,LateHrs=B.LateHrs,DAILYHRS=B.DailyHrs,VALIDOT=B.ValidOT+B.RestOT,EXTRAOT=B.ExtraOT,
+       TiffAllow=B.TiffAllow,ShiftN=B.ShiftN,IFFULLOT=B.IfFullOT,EMPSTATUS=B.EmpStatus,DAYSTATUS=B.DayStatus,TransAllow=B.TransAllow,
+       DinnerAllow=B.DinnerAllow
+From #TempJobCard A Inner Join Back_PacPay.dbo.Emp_Daily_Attend_' + CAST(@MonthID As VarChar) + CAST(RIGHT(@YEAR,2) AS VARCHAR) + ' B On A.REGID=B.RegID And A.DailyDate=B.DailyDate';
+	
+Exec ('' + @q + '')
+End
+
+End
+
+Else
+
+Begin
+
+Update A Set TimeIn=B.TimeIn,TimeOut=B.TimeOut,LateHrs=B.LateHrs,DAILYHRS=B.DailyHrs,VALIDOT=B.ValidOT+B.RestOT,EXTRAOT=B.ExtraOT,
+       TiffAllow=B.TiffAllow,ShiftN=B.ShiftN,IFFULLOT=B.IfFullOT,EMPSTATUS=B.EmpStatus,DAYSTATUS=B.DayStatus,TransAllow=B.TransAllow,
+       DinnerAllow=B.DinnerAllow
+From #TempJobCard A Inner Join Emp_Daily_Attendance B On A.REGID=B.RegID And A.DailyDate=B.DailyDate
+
+End
+
+Update A Set EmpStatus=B.LType, TimeIn=Case When B.DayHalf=0 Then '00:00' Else TimeIn End, TimeOut=Case When B.DayHalf=0 Then '00:00' Else TimeOut End,
+       DailyHrs=Case When B.DayHalf=0 Then '00:00' Else '00:00' End,RestOT=Case When B.DayHalf=0 Then '00:00' ELSE RestOT End,ValidOT=Case When B.DayHalf=0 Then '00:00' Else ValidOT End
+From #TempJobCard A Inner Join Emp_Leave_Entry B On A.REGID=B.RegID And A.DailyDate Between B.FrDate And B.ToDate
+
+
+Update A Set ShiftName=B.ShiftName
+From #TempJobCard A Inner Join Emp_Shift B On A.REGID=B.RegID And A.DailyDate=B.Date
+
+Update A Set OtExtF=1
+From #TempJobCard A Inner Join New_Emp_PF_Member B On A.REGID=B.RegID
+Where B.PFMember=1
+
+
+--Select * From #TempJobCard
+
+Insert Into dbo.Temp_Job_Card_Final_New2 (ComID, EmpCode, WorkDay, AttDay, LeaveDay, THoliDay, AbsDay, FoodDay, ExtFDay, AttBonus, OTHrs, RestOt, OtFDay, OtExtF, EmpEL, 
+                      EmpCL, EmpSL, EmpML, EmpNP, EmpName, EmpDesig, JoinDate, DeptName, SubDept, ComName, ComAdd, SubHeader, TransAllow, DinnerAllow, 
+                      AttOff, AttOffDate, TransDay, RegId, HostName)
+Select ComID, EmpCode, 0, 0, 0, 0, 0, 0, 0, WStatus, 0, 0, 0, OTEXTF, 0, 
+                      0, 0, 0, 0, EmpName, EmpDesig, JoinDate, DeptName, SubDept, ComName, NULL, SubHeader, 0, 0, 
+                      AttOff, AttOffDate, 0, RegId, HostName
+From #TempJobCard
+Group By ComID,EmpCode,WStatus,OTEXTF,EmpName, EmpDesig, JoinDate, DeptName, SubDept, ComName,SubHeader,AttOff, AttOffDate,RegId, HostName
+
+
+Insert Into dbo.Temp_Job_Card_Sub_New2
+Select ComID, DailyDate, EmpCode, NULL, TimeIn, NULL, NULL, TimeOut, LateHrs, DailyHrs, ValidOT, RestOT, ExtraOT, TiffAllow, ShiftN, 
+                      IfFullOT, BusAvail, EmpStatus, DayStatus, DayHide, TransAllow, DinnerAllow, ShiftName, RegID, HostName
+From #TempJobCard
+--Group By ComID, DailyDate, EmpCode, TimeIn, TimeOut, LateHrs, DailyHrs, ValidOT, RestOT, ExtraOT, TiffAllow, ShiftN, 
+--                      IfFullOT, BusAvail, EmpStatus, DayStatus, DayHide, TransAllow, DinnerAllow, ShiftName, RegID, HostName
+Order By RegID,DailyDate

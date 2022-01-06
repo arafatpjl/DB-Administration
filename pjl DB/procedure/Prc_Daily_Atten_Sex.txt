@@ -1,0 +1,263 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_Daily_Atten_Sex]    Script Date: 12/24/2018 09:56:20 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[Prc_Daily_Atten_Sex] @ComID Int,@FrDate SmallDateTime,@ToDate SmallDateTime,@DeptID VarChar(500),@Wstatus VarChar(5),@EmpStatus VarChar(5),@BusAvail Int,@MainHeader VarChar(100), @OTEqual TIME, @OTEqualMore TIME, @ShiftID Int
+AS
+
+-- Exec Prc_Daily_Atten_Sex 7,'15-Apr-2018','15-Apr-2018','23,24,25,26,27,28','W','P',0,'Employee Attendance - Daily Present List','','';
+
+
+If LEN(@ToDate)<5
+Begin
+Set @ToDate=@FrDate
+End
+
+Delete From TempEmpSexCount2 Where HostName=HOST_NAME()
+
+CREATE TABLE #TempDailyAttenSex(
+	[EmpCode] [nvarchar](30) NULL,
+	[Department] [nvarchar](100) NULL,
+	[Section] [nvarchar](100) NULL,
+	[Designation] [nvarchar](100) NULL,
+	[DeCount] [int] NULL,
+	[Sex] [nvarchar](20) NULL,
+	[SexCount] [int] NULL,
+	[ESex] [nvarchar](20) NULL,
+	[ESexCount] [int] NULL,
+	[Status] [int] NULL,
+	[Header] [nvarchar](100) NULL
+) ON [PRIMARY]
+
+--Select @RegID
+
+-- ***********  Present ***********
+
+If @EmpStatus='P'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And TimeIn+TimeOut>'00:00' AND A.EmpStatus<>'A') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+
+-- ***********  Absent ***********
+
+Else If @EmpStatus='A'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID  Cross Join (Select prDate From Daily_Process_Status
+     Where prDate BetWeen @FrDate and @ToDate) F Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate
+     BetWeen @FrDate And @ToDate AND TimeIn+TimeOut>'00:00' AND A.EmpStatus<>'A') D On A.RegId=D.RegID AND F.prDate=D.DailyDate
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0 AND A.MLeave=0 And A.AttOff='N' --And D.RegId IS NULL
+Group By A.Department,A.Section,A.Sex
+
+End
+
+-- ***********  Late ***********
+
+Else If @EmpStatus='L' And @BusAvail=0
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And (LateHrs>'00:00')) D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+Else If @EmpStatus='L' And @BusAvail=1
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And (LateHrs>'00:00') And A.BusAvail='Y') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+End
+
+Else If @EmpStatus='L' And @BusAvail=2
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And (LateHrs>'00:00') And A.BusAvail='N') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+End
+
+-- ***********  Missing ***********
+
+Else If @EmpStatus='M'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And TimeIn+TimeOut>'00:00' And (TimeIn='00:00' Or TimeOut='00:00' Or EmpStatus='-')) D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+-- ***********  Only IN ***********
+
+Else If @EmpStatus='I'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And TimeIn>'00:00' And TimeOut='00:00') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+-- ***********  Only Out ***********
+
+Else If @EmpStatus='O'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And TimeIn='00:00' And TimeOut>'00:00') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+-- ***********  In & Out ***********
+
+Else If @EmpStatus='IO'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And TimeIn>'00:00' And TimeOut>'00:00') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+-- ***********  Non OverTime ***********
+
+Else If @EmpStatus='NO'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And ValidOT+RestOT+ExtraOT='00:00') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0 
+Group By A.Department,A.Section,A.Sex
+
+End
+
+-- ***********  OverTime ***********
+
+Else If @EmpStatus='OT' And @OTEqual='00:00' And @OTEqualMore='00:00'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+     And ValidOT+RestOT+ExtraOT>'00:00') D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+Else If @EmpStatus='OT' And @OTEqual>'00:00'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+      And Cast(ValidOT+RestOT+ExtraOT As Time)=@OTEqual) D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+Else If @EmpStatus='OT' And @OTEqualMore>'00:00'
+
+Begin
+
+Insert  into #TempDailyAttenSex
+SELECT Null,A.Department,A.Section,Null,Null,A.Sex,COUNT(D.RegId),A.Sex As Esex,COUNT(A.RegId),10,@MainHeader
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate BetWeen @FrDate And @ToDate 
+      And Cast(ValidOT+RestOT+ExtraOT As Time)>=@OTEqualMore) D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.Mleft=0
+Group By A.Department,A.Section,A.Sex
+
+End
+
+
+Insert Into TempEmpSexCount2( EmpCode, Department, Section, Designation, DeCount, Sex, SexCount, ESex, ESexCount, Status, Header, HostName)
+Select *,HOST_NAME() From #TempDailyAttenSex

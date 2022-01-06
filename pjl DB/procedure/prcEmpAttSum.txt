@@ -1,0 +1,198 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcEmpAttSum]    Script Date: 01/06/2019 13:16:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcEmpAttSum] @Comid tinyint, @Dept varchar(50), @SubDept Varchar(50), @Wstatus char, @Year varchar(4), @Month varchar(15), @Days tinyint
+as
+--	Employee Monthly Attendance Summary
+
+--	Exec prcEmpAttSum 1, 'SEWING', 'LINE # ST-01', 'W', '2008', 'APRIL', 30
+--	Exec prcEmpAttSum 1, 'JR. MGT-A','ACCOUNTS', 'J', '2008', 'APRIL', 30
+--	Exec prcEmpAttSum 1, 'MERCHANDISING','', 'S', '2008', 'APRIL', 30
+
+--	Clear Existing Record
+	Delete From Temp_Emp_Attendance_Sum_2 Where HostName=Host_Name()
+
+
+--	DS = Daily Status, DO = Daily Overtime, ES = Emp Status, HL = Half Day Leave, DH = Daily Hours
+	declare @I int, @DS varchar(4), @ES varchar(4), @DO varchar(4), @HL varchar(4), @DH varchar(4)
+	Declare @SampleDt smallDatetime, @PrevDt smallDatetime, @NextDt smallDatetime
+
+	Select @I = 1, @DS = '', @ES = '', @DO = '', @HL = '', @DH = ''
+
+	IF LEN(@SubDept) > 0
+	Begin
+		-- 	Enter Continue Employee
+		Insert Into Temp_Emp_Attendance_Sum_2 (Comid, CompanyName, CompanyAddress, DeptName, SubDeptName, EmployeeCode, EmployeeName, Designation, JoiningDate, Wstatus, RYear, RMonth,RegID,HostName)
+		Select A.Comid, B.Name, B.Address, A.Department, A.Section, A.EmployeeCode, A.Name, A.Designation, A.JoiningDate, A.Wstatus, @Year AS RYear, @Month AS RMonth,RegID,Host_Name()
+		From Employee_Information AS A
+		Inner Join Company_Information As B On A.Comid  = B.id 
+		Where ((A.Comid = @ComID) and (A.Department = @Dept) and (A.Section = @SubDept) and (A.Wstatus = @Wstatus) and (A.Mleft = 0 ) And (A.Mleave = 0))
+		Order By A.EmployeeCode
+
+--		Update Daily Wise Record
+		While @I <= @Days
+		Begin
+			if @I<10
+			Begin
+				Select @DS = 'DS0' + Cast(@I as varchar(1)), @ES = 'ES0' + Cast(@I as varchar(1)), 
+					@DO = 'DO0' + Cast(@I as varchar(1)), @HL = 'HL0' + Cast(@I as varchar(1)),
+					@DH = 'DH0' + Cast(@I as varchar(1))
+				Select @SampleDt = '0' + Cast(@I as varchar(1)) + '-' + Substring(@Month, 1, 3) + '-' + @Year
+				Select @PrevDt = '0' + Cast(@I as varchar(1)) + '-' + Substring(@Month, 1, 3) + '-' + @Year
+				Select @NextDt = '0' + Cast(@I as varchar(1)) + '-' + Substring(@Month, 1, 3) + '-' + @Year
+			End
+			Else
+			Begin
+				Select @DS = 'DS' + Cast(@I as varchar(2)), @ES = 'ES' + Cast(@I as varchar(2)), 
+					@DO = 'DO' + Cast(@I as varchar(2)), @HL = 'HL' + Cast(@I as varchar(2)),
+					@DH = 'DH' + Cast(@I as varchar(2))
+				Select @SampleDt = Cast(Cast(@I as varchar(2)) + '-' + Substring(@Month, 1, 3) + '-' + @Year as smallDateTime)
+				Select @PrevDt = Cast(Cast(@I as varchar(2)) + '-' + Substring(@Month, 1, 3) + '-' + @Year as smallDateTime)
+				Select @NextDt = Cast(Cast(@I as varchar(2)) + '-' + Substring(@Month, 1, 3) + '-' + @Year as smallDateTime)
+			End
+/*
+			Select @DS, B.EmpStatus, @DO, (B.ValidOT + B.RestOT + B.ExtraOT), @I, DatePart(D, B.DailyDate), Upper(DateName(month, B.DailyDate)), @Month, DateName(Year, B.DailyDate), @Year
+			From Temp_Emp_Attendance_Sum_2 AS A
+			Inner join Emp_Daily_Attendance AS B On ((A.RegID = B.RegID))
+			Where HostName=Host_Name() And  ((DatePart(D, B.DailyDate) = @I) And (Upper(DateName(month, B.DailyDate)) = @Month) And (DateName(Year, B.DailyDate) = @Year))
+*/
+
+-- 			Update Day Status	It's Req For "ARA"
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2 Set  '+ @DS +'= B.Status
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Cross join Daily_Process_Status AS B
+				Where HostName=Host_Name() And  ((B.prDate = '''+ @SampleDt +'''))
+			')
+
+--			Update Employee Status
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= B.Status
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Cross join Daily_Process_Status AS B
+				Where HostName=Host_Name() And  ((B.prDate = '''+ @SampleDt +''') and (B.Holiday = 1))
+			')
+
+--			Update Employee Status To NP 	''	For New Joining
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= ''NP''
+				Where HostName=Host_Name() And  ((JoiningDate > '''+ @SampleDt +'''))
+			')
+
+--			Update Employee Status, Daily Overtime, Daily Hours
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2
+				Set  '+ @ES +'= B.EmpStatus, '+ @DO +' = (B.ValidOT + B.RestOT + B.ExtraOT), '+ @DH +' = B.DailyHrs
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Inner join Emp_Daily_Attendance AS B On ((A.RegID = B.RegID))
+				Where HostName=Host_Name() And  ((DatePart(D, B.DailyDate) = '+ @I +') And (Upper(DateName(month, B.DailyDate)) = '''+ @Month +''') And (DateName(Year, B.DailyDate) = '+ @Year +'))
+			')
+
+--			Update Employee Leave Info, Also Check Half Day leave
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= B.LType, '+ @HL +' = B.DayHalf
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Inner join Emp_Leave_Entry AS B On ((A.RegID = B.RegID))
+				Where HostName=Host_Name() And  (('''+ @SampleDt +'''  Between B.FrDate And B.ToDate ))
+			')
+		Select @I = @I + 1
+		End
+	End
+	Else
+	Begin
+-- 		Enter Continue Employee
+		Insert Into Temp_Emp_Attendance_Sum_2 (Comid, CompanyName, CompanyAddress, DeptName, SubDeptName, EmployeeCode, EmployeeName, Designation, JoiningDate, Wstatus, RYear, RMonth,RegID,HostName)
+		Select A.Comid, B.Name, B.Address, A.Department, A.Section, A.EmployeeCode, A.Name, A.Designation, A.JoiningDate, A.Wstatus, @Year AS RYear, @Month AS RMonth,RegID,Host_Name()
+		From Employee_Information AS A
+		Inner Join Company_Information As B On A.Comid  = B.id 
+		Where ((A.Comid = @ComID) and (A.Department = @Dept) and (A.Wstatus = @Wstatus) and (A.Mleft = 0 ))
+		Order By A.EmployeeCode
+
+--		Update Daily Wise Record
+		While @I <= @Days
+		Begin
+			if @I<10
+			Begin
+				Select @DS = 'DS0' + Cast(@I as varchar(1)), @ES = 'ES0' + Cast(@I as varchar(1)), 
+					@DO = 'DO0' + Cast(@I as varchar(1)), @HL = 'HL0' + Cast(@I as varchar(1)),
+					@DH = 'DH0' + Cast(@I as varchar(1))
+				Select @SampleDt = '0' + Cast(@I as varchar(1)) + '-' + Substring(@Month, 1, 3) + '-' + @Year
+				Select @PrevDt = '0' + Cast(@I as varchar(1)) + '-' + Substring(@Month, 1, 3) + '-' + @Year
+				Select @NextDt = '0' + Cast(@I as varchar(1)) + '-' + Substring(@Month, 1, 3) + '-' + @Year
+			End
+			Else
+			Begin
+				Select @DS = 'DS' + Cast(@I as varchar(2)), @ES = 'ES' + Cast(@I as varchar(2)), 
+					@DO = 'DO' + Cast(@I as varchar(2)), @HL = 'HL' + Cast(@I as varchar(2)),
+					@DH = 'DH' + Cast(@I as varchar(2))
+				Select @SampleDt = Cast(Cast(@I as varchar(2)) + '-' + Substring(@Month, 1, 3) + '-' + @Year as smallDateTime)
+				Select @PrevDt = Cast(Cast(@I as varchar(2)) + '-' + Substring(@Month, 1, 3) + '-' + @Year as smallDateTime)
+				Select @NextDt = Cast(Cast(@I as varchar(2)) + '-' + Substring(@Month, 1, 3) + '-' + @Year as smallDateTime)
+			End
+
+-- 			Update Day Status	It's Req For "ARA"
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @DS +'= B.Status
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Cross join Daily_Process_Status AS B
+				Where HostName=Host_Name() And  ((B.prDate = '''+ @SampleDt +'''))
+			')
+
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= B.Status
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Cross join Daily_Process_Status AS B
+				Where HostName=Host_Name() And  ((B.prDate = '''+ @SampleDt +''') and (B.Holiday = 1))
+			')
+	
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= ''NP''
+				Where HostName=Host_Name() And  ((JoiningDate > '''+ @SampleDt +'''))
+			')
+
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= B.EmpStatus, '+ @DO +' = (B.ValidOT + B.RestOT + B.ExtraOT), '+ @DH +' = B.DailyHrs
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Inner join Emp_Daily_Attendance AS B On ((A.RegID = B.RegID))
+				Where HostName=Host_Name() And  ((DatePart(D, B.DailyDate) = '+ @I +') And (Upper(DateName(month, B.DailyDate)) = '''+ @Month +''') And (DateName(Year, B.DailyDate) = '+ @Year +'))
+			')
+
+			Exec('
+				Update Temp_Emp_Attendance_Sum_2	Set  '+ @ES +'= B.LType, '+ @HL +' = B.DayHalf
+				From Temp_Emp_Attendance_Sum_2 AS A
+				Inner join Emp_Leave_Entry AS B On ((A.RegID = B.RegID))
+				Where HostName=Host_Name() And  (('''+ @SampleDt +'''  Between B.FrDate And B.ToDate ))
+			')
+		Select @I = @I + 1
+		End
+	End
+
+	If @Days = 28 
+	Begin
+		Update Temp_Emp_Attendance_Sum_2
+		Set ES29 = 'NA', ES30 = 'NA', ES31 = 'NA'
+	End
+	Else If @Days = 29
+	Begin
+		Update Temp_Emp_Attendance_Sum_2
+		Set ES30 = 'NA', ES31 = 'NA'
+	End
+	Else If @Days = 30
+	Begin
+		Update Temp_Emp_Attendance_Sum_2
+		Set ES31 = 'NA'
+	End
+
+
+--	Select top 10 * from Temp_Emp_Attendance_Sum_2
+--	Select top 10 * from Emp_daily_attendance
+--	Select top 10 * from Emp_Leave_Entry
+--	Select * from Daily_Process_Status
+
+
+
+

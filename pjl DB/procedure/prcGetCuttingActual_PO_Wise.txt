@@ -1,0 +1,78 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcGetCuttingActual_PO_Wise]    Script Date: 01/06/2019 13:26:29 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER Proc [dbo].[prcGetCuttingActual_PO_Wise] @Comid tinyint,@PO varchar(50)
+
+-- exec prcGetCuttingActual_PO_Wise 13,'P0119-413175-005'
+
+-- exec prcGetCuttingActual_PO_Wise 7,'P0119-420004-005'  
+
+  -- 			select * from tblPO_Main where id=2951 --P0119-413175-005
+as
+
+
+
+	SELECT 
+		 PO_ID	
+		,Daily_Date	
+		,Process	
+		,SewLine	
+		,sum(tblPO_Sub.Qty) ActualQty
+		into #tblPO_Sub
+		FROM tblPO_Sub     Inner Join tblPO_Main ON
+		tblPO_Main.ID=tblPO_Sub.PO_ID
+		where CompID=@Comid and PO=@PO 
+		group by  Daily_Date,Process,SewLine,PO_ID
+
+
+
+	SELECT PO
+			,PF 
+			,Color					
+			
+			,Inseam		
+			,Size				
+		--,Qty as OrderQty
+			,Daily_Date	
+			,SewLine
+			,ActualQty as ProcessQty
+			into #tblPO_data
+			FROM tblPO_Main Inner Join #tblPO_Sub on
+			tblPO_Main.ID=#tblPO_Sub.PO_ID
+			order by PO,Color,Daily_Date,SewLine,Inseam,Size 
+
+
+			DECLARE @cols AS NVARCHAR(MAX)
+
+			select distinct size 
+			into #tblPO_data_size
+			from #tblPO_data
+
+			select @cols = STUFF((SELECT  ',' + QUOTENAME(size) 
+                from #tblPO_data_size
+                order by size
+        FOR XML PATH(''), TYPE
+        ).value('.', 'NVARCHAR(MAX)') 
+    ,1,1,'')
+
+
+	
+	--select *
+	-- from #tblPO_data;
+
+		DECLARE @query AS NVARCHAR(MAX)
+
+		SELECT @query ='select *
+	 from #tblPO_data
+		pivot ( avg(ProcessQty) for Size in ('+@cols+') ) as Size order by Color,Daily_Date,SewLine'
+
+
+		print @query
+
+		 EXEC SP_EXECUTESQL @query

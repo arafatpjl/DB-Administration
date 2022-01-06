@@ -1,0 +1,124 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Daily_Manpower_Analysis]    Script Date: 12/24/2018 09:32:28 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROC [dbo].[Daily_Manpower_Analysis] @Dailydate SmallDateTime
+as
+
+STEP1:
+
+IF (SELECT COUNT(Date)FROM Daily_Manpower WHERE Date=@Dailydate)>0 GOTO STEP2
+
+Delete From Daily_Manpower where Date=@Dailydate
+
+insert into Daily_Manpower (Date, Department, Section, Designation, WStatus, DayStatus, Exist)
+Select C.prDate,C.Department,C.Section,C.Designation,C.WStatus,C.Status,Sum(C.Exist)
+From (select B.prDate,A.Department,A.Section,CASE WHEN WStatus='S' THEN 'SR. MGT' WHEN WStatus='J' THEN 'JR. MGT'
+       WHEN WStatus='F' THEN CASE WHEN Designation like '%supervisor' then 'SUPERVISOR' WHEN DESIGNATION='LEADER'
+       THEN 'LEADER' ELSE 'STAFF' END WHEN WStatus='W' THEN CASE WHEN Designation IN ('MARKER','IRONER')
+       THEN DESIGNATION ELSE DESIGADDI END END AS Designation,A.WStatus,B.Status,COUNT(distinct A.EmployeeCode) as Exist
+from Employee_Information A inner join Daily_Process_Status B
+     on A.ComID=B.ComID
+where B.prDate=@Dailydate and A.MLeft=0 and A.AttOff='N'
+group by B.prDate,A.Department,A.Section,A.Designation,A.DesigAddi,A.WStatus,B.Status) C
+group by C.prDate,C.Department,C.Section,C.Designation,C.WStatus,C.Status
+order by 2,3,5,4
+
+
+STEP2:
+
+UPDATE Daily_Manpower SET ML=N.ML FROM Daily_Manpower M INNER JOIN
+       (SELECT B.Department,B.Section,B.Designation,B.WStatus,Sum(B.ML) ML
+        FROM (select A.Department,A.Section,CASE WHEN WStatus='S' THEN 'SR. MGT' WHEN WStatus='J' THEN 'JR. MGT'
+              WHEN WStatus='F' THEN CASE WHEN Designation like '%supervisor' then 'SUPERVISOR' WHEN DESIGNATION='LEADER'
+              THEN 'LEADER' ELSE 'STAFF' END WHEN WStatus='W' THEN CASE WHEN Designation IN ('MARKER','IRONER')
+              THEN DESIGNATION ELSE DESIGADDI END END AS Designation,A.WStatus,COUNT(*) AS ML
+              from Employee_Information A
+              where A.MLeft=0 and A.AttOff='N' AND A.MLeave=1
+              group by A.Department,A.Section,A.Designation,A.DesigAddi,A.WStatus) B
+              group by B.Department,B.Section,B.Designation,B.WStatus) N ON M.Department=N.Department AND
+       M.Section=N.Section AND M.Designation=N.Designation AND M.WStatus=N.WStatus
+WHERE Date=@Dailydate
+
+
+UPDATE Daily_Manpower SET NewJoinEmp=N.NewJoin FROM Daily_Manpower M INNER JOIN
+       (SELECT B.Department,B.Section,B.Designation,B.WStatus,Sum(B.NewJoin) NewJoin
+        FROM (select A.Department,A.Section,CASE WHEN WStatus='S' THEN 'SR. MGT' WHEN WStatus='J' THEN 'JR. MGT'
+              WHEN WStatus='F' THEN CASE WHEN Designation like '%supervisor' then 'SUPERVISOR' WHEN DESIGNATION='LEADER'
+              THEN 'LEADER' ELSE 'STAFF' END WHEN WStatus='W' THEN CASE WHEN Designation IN ('MARKER','IRONER')
+              THEN DESIGNATION ELSE DESIGADDI END END AS Designation,A.WStatus,COUNT(*) AS NewJoin
+              from Employee_Information A
+              where A.MLeft=0 and A.AttOff='N' and JoiningDate=@Dailydate
+              group by A.Department,A.Section,A.Designation,A.DesigAddi,A.WStatus) B
+              group by B.Department,B.Section,B.Designation,B.WStatus) N ON M.Department=N.Department AND
+       M.Section=N.Section AND M.Designation=N.Designation AND M.WStatus=N.WStatus
+WHERE Date=@Dailydate
+
+
+UPDATE Daily_Manpower SET Present=N.Present FROM Daily_Manpower M INNER JOIN
+       (SELECT B.Department,B.Section,B.Designation,B.WStatus,Sum(B.Present) Present
+        FROM (select A.Department,A.Section,CASE WHEN WStatus='S' THEN 'SR. MGT' WHEN WStatus='J' THEN 'JR. MGT'
+              WHEN WStatus='F' THEN CASE WHEN Designation like '%supervisor' then 'SUPERVISOR' WHEN DESIGNATION='LEADER'
+              THEN 'LEADER' ELSE 'STAFF' END WHEN WStatus='W' THEN CASE WHEN Designation IN ('MARKER','IRONER')
+              THEN DESIGNATION ELSE DESIGADDI END END AS Designation,A.WStatus,COUNT(*) AS Present
+              from Employee_Information A INNER JOIN Emp_Daily_Attendance C ON
+              A.ComID=C.ComId And A.EmployeeCode=C.EmpCode
+              where C.DailyDate=@Dailydate AND A.MLeft=0 and A.AttOff='N' AND A.MLeave=0
+              group by A.Department,A.Section,A.Designation,A.DesigAddi,A.WStatus) B
+              group by B.Department,B.Section,B.Designation,B.WStatus) N ON M.Department=N.Department AND
+       M.Section=N.Section AND M.Designation=N.Designation AND M.WStatus=N.WStatus
+WHERE Date=@Dailydate
+
+
+UPDATE Daily_Manpower SET EL=N.EL,CL=N.CL,SL=N.SL FROM Daily_Manpower M INNER JOIN
+       (SELECT B.Department,B.Section,B.Designation,B.WStatus,Sum(B.EL) EL,Sum(B.CL) CL,Sum(B.SL) SL
+        FROM (select A.Department,A.Section,CASE WHEN A.WStatus='S' THEN 'SR. MGT' WHEN A.WStatus='J' THEN 'JR. MGT'
+              WHEN A.WStatus='F' THEN CASE WHEN Designation like '%supervisor' then 'SUPERVISOR' WHEN DESIGNATION='LEADER'
+              THEN 'LEADER' ELSE 'STAFF' END WHEN A.WStatus='W' THEN CASE WHEN Designation IN ('MARKER','IRONER')
+              THEN DESIGNATION ELSE DESIGADDI END END AS Designation,A.WStatus,
+              CASE WHEN LType='CL' THEN COUNT(*) ELSE 0 END AS CL,CASE WHEN LType='SL' THEN COUNT(*) ELSE 0 END AS SL,
+              CASE WHEN LType='EL' THEN COUNT(*) ELSE 0 END AS EL
+              from Employee_Information A INNER JOIN Emp_Leave_Entry C ON
+              A.ComID=C.ComId And A.EmployeeCode=C.EmpCode
+              where @Dailydate BETWEEN C.FrDate AND C.ToDate AND A.MLeft=0 and A.AttOff='N' AND A.MLeave=0
+              group by A.Department,A.Section,A.Designation,A.DesigAddi,A.WStatus,C.LType) B
+              group by B.Department,B.Section,B.Designation,B.WStatus) N ON M.Department=N.Department AND
+       M.Section=N.Section AND M.Designation=N.Designation AND M.WStatus=N.WStatus
+WHERE Date=@Dailydate
+
+
+UPDATE Daily_Manpower SET Absent=Exist-(Present+EL+CL+SL+ML)
+
+
+UPDATE Daily_Manpower SET OTEmp=N.NormalOTEmp,OTHrs=N.NormalOTHrs,ExtraOTEmp=N.ExtraOTEmp,ExtraOTHrs=N.ExtraOTHrs
+      FROM Daily_Manpower M INNER JOIN
+(select C.Department,C.Section, C.Designation, C.WStatus, SUM(C.Total_Worker) as Total_Worker, SUM(C.NormalHrs) as NormalHrs, 
+        SUM(C.NormalOTEmp) as NormalOTEmp, SUM(C.NormalOTHrs) as NormalOTHrs, 
+        SUM(C.ExtraOTEmp) as ExtraOTEmp, SUM(C.ExtraOTHrs) as ExtraOTHrs
+From (select B.Department,B.Section,A.EmpCode,CASE WHEN B.WStatus='S' THEN 'SR. MGT' WHEN B.WStatus='J' THEN 'JR. MGT'
+              WHEN B.WStatus='F' THEN CASE WHEN Designation like '%supervisor' then 'SUPERVISOR' WHEN DESIGNATION='LEADER'
+              THEN 'LEADER' ELSE 'STAFF' END WHEN B.WStatus='W' THEN CASE WHEN Designation IN ('MARKER','IRONER')
+              THEN DESIGNATION ELSE DESIGADDI END END AS Designation,B.WStatus,A.DailyDate,COUNT(*) as Total_Worker,
+     case when A.DayStatus IN ('R','S') then 
+          DATEPART(HH,CASE WHEN DailyHrs<='08:00:00' THEN DailyHrs ELSE '08:00:00' END)+
+          DATEPART(N,CASE WHEN DailyHrs<='08:00:00' THEN DailyHrs ELSE '08:00:00' END)/60.0 end AS NormalHrs,
+     case when A.DailyHrs between '08:30:00' and '10:00:00' and A.DayStatus IN ('R','S') then 
+          COUNT(*) ELSE 0 end AS NormalOTEmp,
+     case when A.DailyHrs between '08:30:00' and '10:00:00' and A.DayStatus IN ('R','S') then 
+          SUM(DATEPART(HH,RestOT)+(DATEPART(N,RestOT)/60.0)) ELSE 0 end AS NormalOTHrs,
+     case when A.DailyHrs>'10:00:00' or A.DayStatus not IN ('R','S') then COUNT(*) ELSE 0 end AS ExtraOTEmp,
+     case when A.DailyHrs>'10:00:00' OR ExtraOT>0 or A.DayStatus not IN ('R','S') then 
+          SUM(DATEPART(HH,CASE WHEN RestOT>='02:00:00' THEN RestOT+ExtraOT-'02:00:00' ELSE ValidOT+ExtraOT END)+
+          (DATEPART(N,CASE WHEN RestOT>='02:00:00' THEN RestOT+ExtraOT-'02:00:00' ELSE ValidOT+ExtraOT END)/60.0)) ELSE 0 end AS ExtraOTHrs
+from dbo.Emp_Daily_Attendance A inner Join Employee_Information B
+    on A.ComID=B.ComID and A.EmpCode=B.EmployeeCode 
+where B.WStatus='W' and DailyDate =@Dailydate
+group by B.Department,B.Section,A.EmpCode,A.DailyDate,A.DailyHrs,A.DayStatus,A.ValidOT,A.RestOT,A.ExtraOT,
+         B.WStatus,B.Designation,B.DesigAddi) C
+group by C.Department, C.Section, C.Designation, C.WStatus) N ON M.Department=N.Department AND
+       M.Section=N.Section AND M.Designation=N.Designation AND M.WStatus=N.WStatus
+
+update Daily_Manpower set Exist=Exist-absent,Absent=0 where absent<0

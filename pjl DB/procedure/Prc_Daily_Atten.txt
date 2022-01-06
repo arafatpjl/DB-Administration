@@ -1,0 +1,259 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_Daily_Atten]    Script Date: 12/24/2018 09:54:50 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[Prc_Daily_Atten] @ComID Int,@FrDate SmallDateTime,@ToDate SmallDateTime,@DeptID VarChar(500),@Wstatus VarChar(5),@EmpStatus VarChar(5),@BusAvail Int,@MainHeader VarChar(100), @OTEqual TIME, @OTEqualMore TIME, @ShiftID Int
+AS
+
+-- Exec Prc_Daily_Atten 7,'16-May-2018','16-May-2018','23,24,25,26,27,28','W','A',0,'Employee Attendance - Daily Present List','','';
+
+
+
+If LEN(@ToDate)<5
+Begin
+Set @ToDate=@FrDate
+End
+
+Delete From Temp_Emp_Daily_Atten_New Where HostName=HOST_NAME()
+
+CREATE TABLE #TempDailyAtten(
+	[ComID] [tinyint] NULL,
+	[DailyDate] [smalldatetime] NULL,
+	[EmpCode] [nvarchar](15) NULL,
+	[ShiftIn] [smalldatetime] NULL,
+	[TimeIn] [smalldatetime] NULL,
+	[ShiftLate] [smalldatetime] NULL,
+	[BreakHrs] [smalldatetime] NULL,
+	[TimeOut] [smalldatetime] NULL,
+	[LateHrs] [smalldatetime] NULL,
+	[DailyHrs] [smalldatetime] NULL,
+	[OTHrs] [smalldatetime] NULL,
+	[ExtraOT] [smalldatetime] NULL,
+	[RestOT] [smalldatetime] NULL,
+	[OnlyOT] [smalldatetime] NULL,
+	[TiffAllow] [nvarchar](1) NULL,
+	[ShiftN] [nvarchar](10) NULL,
+	[BusAvail] [nvarchar](10) NULL,
+	[EmpStatus] [nvarchar](50) NULL,
+	[EmpName] [nvarchar](100) NULL,
+	[EmpDesig] [nvarchar](100) NULL,
+	[DeptName] [nvarchar](50) NULL,
+	[SubDept] [nvarchar](50) NULL,
+	[ComName] [nvarchar](100) NULL,
+	[ComAdd] [nvarchar](200) NULL,
+	[SubHeder] [nvarchar](100) NULL,
+	[Sex] [nvarchar](6) NULL
+) ON [PRIMARY]
+
+--Select @RegID
+
+SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')
+
+-- ***********  Present ***********
+
+If @EmpStatus='P'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.TimeIn+D.TimeOut>'00:00' AND D.EmpStatus<>'A'
+
+End
+
+-- ***********  Absent ***********
+
+Else If @EmpStatus='A'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,F.prDate DailyDate,A.EmployeeCode,Null,IsNull(D.TimeIn,'00:00'),NULL,NULL,IsNull(D.TimeOut,'00:00'),
+       IsNull(D.LateHrs,'00:00'),IsNull(D.DailyHrs,'00:00'),IsNull(D.ValidOT+D.RestOT,'00:00'),
+       Null,Null,NULL,NULL,NULL,A.BusAvail,IsNull(D.EmpStatus,'A'),A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, F.prDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID  Cross Join (Select prDate From Daily_Process_Status
+     Where prDate BetWeen @FrDate and @ToDate) F Left Join (Select A.* From Emp_Daily_Attendance A Inner Join
+     Employee_Information B ON A.RegID=B.RegId Where B.ComID=@ComID And B.WStatus=@Wstatus AND DailyDate
+     BetWeen @FrDate And @ToDate AND TimeIn+TimeOut>'00:00' AND A.EmpStatus<>'A') D On A.RegId=D.RegID And F.prDate=D.DailyDate
+WHERE A.ComID=@ComID And A.WStatus=@Wstatus And A.MLeft=0 AND A.MLeave=0 And A.AttOff='N' And D.RegId IS NULL
+
+UPDATE A SET EmpStatus=C.LType From #TempDailyAtten A Inner Join Employee_Information B On A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+     INNER JOIN Emp_Leave_Entry C ON B.RegId=C.RegID AND A.DailyDate BETWEEN C.FrDate AND C.ToDate
+
+End
+
+-- ***********  Late ***********
+
+Else If @EmpStatus='L'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And (D.LateHrs>'00:00')
+
+If @BusAvail=1
+Begin
+
+Delete From #TempDailyAtten Where BusAvail<>'Y'
+
+End
+
+Else If @BusAvail=2
+Begin
+
+Delete From #TempDailyAtten Where BusAvail='Y'
+
+End
+
+End
+
+-- ***********  Missing ***********
+
+Else If @EmpStatus='M'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.TimeIn+D.TimeOut>'00:00' And 
+     (D.TimeIn='00:00' Or D.TimeOut='00:00' Or D.EmpStatus='-')
+
+End
+
+-- ***********  Only IN ***********
+
+Else If @EmpStatus='I'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.TimeIn>'00:00' And D.TimeOut='00:00'
+
+End
+
+-- ***********  Only Out ***********
+
+Else If @EmpStatus='O'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.TimeIn='00:00' And D.TimeOut>'00:00'
+
+End
+
+-- ***********  In & Out ***********
+
+Else If @EmpStatus='IO'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.TimeIn>'00:00' And D.TimeOut>'00:00'
+
+End
+
+-- ***********  Non OverTime ***********
+
+Else If @EmpStatus='NO'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.ValidOT+D.RestOT+D.ExtraOT='00:00'
+
+End
+
+-- ***********  OverTime ***********
+
+Else If @EmpStatus='OT'
+
+Begin
+
+Insert  into #TempDailyAtten
+SELECT A.ComID,D.DailyDate,A.EmployeeCode,Null,D.TimeIn,NULL,NULL,D.TimeOut,D.LateHrs,D.DailyHrs,D.ValidOT+D.RestOT,
+       Null,Null,NULL,NULL,NULL,A.BusAvail,D.EmpStatus,A.Name,A.Designation,A.Department,A.Section,C.Name,
+       @MainHeader,'DATE :  ' + Cast(replace(convert(NVARCHAR, DailyDate, 106), ' ', '-') As VarChar),A.Sex
+FROM Employee_Information A Inner Join Sub_Dept_Name B On A.Department=B.DeptName AND A.Section=B.SubDeptName
+     Inner Join (SELECT splitdata AS SubDeptID  FROM dbo.fnSplitString((@DeptID),',')) E On B.SubdeptId=E.SubDeptID
+     Inner Join Company_Information C ON A.ComID=C.ID Inner Join Emp_Daily_Attendance D On A.RegId=D.RegID
+WHERE A.ComID=@ComID And D.DailyDate BetWeen @FrDate And @ToDate And A.WStatus=@Wstatus And D.ValidOT+D.RestOT+D.ExtraOT>'00:00'
+
+If @OTEqual>'00:00'
+Begin
+
+Delete From #TempDailyAtten Where Cast(OTHrs As Time)<>@OTEqual
+
+End
+
+Else If @OTEqualMore>'00:00'
+Begin
+
+Delete From #TempDailyAtten Where Cast(OTHrs As Time)<@OTEqualMore
+
+End
+
+End
+
+If @ShiftID<>''
+Begin
+
+Delete A From #TempDailyAtten A Inner Join Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+    Inner Join Emp_SHift C On B.RegId=C.RegId AND A.DailyDate=C.Date Where C.ShiftID<>@ShiftID
+    
+Update A Set ShiftN=REPLACE(REPLACE(CONVERT(varchar(15), CAST(C.InTime AS TIME), 100), 'P', ' P'), 'A', ' A') From #TempDailyAtten A Inner Join Employee_Information B ON A.ComID=B.ComID AND A.EmpCode=B.EmployeeCode
+    Inner Join Emp_SHift C On B.RegId=C.RegId AND A.DailyDate=C.Date Where C.ShiftID=@ShiftID
+
+Update A Set ShiftN=REPLACE(REPLACE(CONVERT(varchar(15), CAST(B.ShiftIn AS TIME), 100), 'P', ' P'), 'A', ' A') From #TempDailyAtten A Inner Join Daily_Process_Others B ON A.DailyDate BetWeen B.FrDate And B.ToDate
+Where @ShiftID='1'
+
+End
+
+Insert Into Temp_Emp_Daily_Atten_New
+Select *,Host_Name() From #TempDailyAtten

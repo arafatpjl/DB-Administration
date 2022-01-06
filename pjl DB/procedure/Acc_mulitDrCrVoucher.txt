@@ -1,0 +1,47 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Acc_mulitDrCrVoucher]    Script Date: 12/24/2018 09:29:58 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[Acc_mulitDrCrVoucher] @strMainLedger nvarchar(50),@bytCompID int,@varBeginDate smalldatetime,@varEndDate smalldatetime
+as
+
+       DELETE  FROM Acc_Temp_Ledger_Multi_DrCr;
+      
+            insert into Acc_Temp_mulitDrCrVoucher (legID,legName,vouchNo,vouchType,totaldr,totalcr)
+            Select A.legID,A.legName,A.vouchNo,B.vouchType,Count(Case When C.debitTK<>0 Then 'DR' End) AS TotalDR,
+            Count(Case When C.creditTK<>0 Then 'CR' End ) AS TotalCR From (Acc_Temp_Ledger_Book_Sub As A Inner Join Acc_Vouch_Entry_Main As B On A.vouchNo=B.vouchNo)
+            Inner Join Acc_Vouch_Entry_Sub As C On B.vouchNo=C.vouchNo Where (((B.vouchDate) Between @varBeginDate AND @varEndDate)
+            And ((B.ComID)=@bytCompID)) Group By A.legID,A.LegName,A.vouchNo,B.vouchType;
+
+
+
+
+        
+            update Acc_Temp_mulitDrCrVoucher set sign=1
+             where (TotalDR <> 1 or TotalCR  <> 1) and vouchType = 'JOU'
+             
+
+            delete from Acc_Temp_mulitDrCrVoucher where  sign=0
+
+
+
+Delete from Acc_Temp_Ledger_Multi_DrCr
+
+
+INSERT INTO Acc_Temp_Ledger_Multi_DrCr(LegID,legName,vouchNo,debitTK,creditTK,DrCr,MainLedger)
+SELECT     dbo.Acc_New_Ledger.legID, dbo.Acc_New_Ledger.LegName, dbo.Acc_Vouch_Entry_Sub.vouchNo, dbo.Acc_Vouch_Entry_Sub.debitTK, 
+                      dbo.Acc_Vouch_Entry_Sub.creditTK, (CASE WHEN dbo.Acc_Vouch_Entry_Sub.debitTK <> 0 THEN 'Dr' ELSE 'Cr' END) AS DrCr, @strMainLedger
+FROM         dbo.Acc_Vouch_Entry_Sub INNER JOIN
+                      dbo.Acc_New_Ledger ON dbo.Acc_Vouch_Entry_Sub.comID = dbo.Acc_New_Ledger.comID AND 
+                      dbo.Acc_Vouch_Entry_Sub.legID = dbo.Acc_New_Ledger.legID INNER JOIN
+                      dbo.Acc_Temp_mulitDrCrVoucher ON dbo.Acc_Vouch_Entry_Sub.vouchNo = dbo.Acc_Temp_mulitDrCrVoucher.Vouchno
+WHERE     (dbo.Acc_Vouch_Entry_Sub.ComID) = @bytCompID AND (dbo.Acc_New_Ledger.LegID) <> @strMainLedger
+
+
+
+
+
+

@@ -1,0 +1,84 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[Prc_PF_Member]    Script Date: 12/24/2018 10:48:17 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER Procedure [dbo].[Prc_PF_Member] @Comid Int,@SignNI Int,@SignNotMember Int,@Wstatus Nvarchar(2),@EmpCode NVarchar(10)
+AS
+IF @EmpCode<>''
+Begin
+select Top 100 Percent D.Name ComName,D.NameBangla ComNameBangla,A.EmployeeCode,A.Name,A.Department,A.Section,A.Designation,A.JoiningDate,
+       Case When DateDiff(MM,A.JoiningDate,GETDATE())>4 OR (DateDiff(MM,A.JoiningDate,GETDATE())=4 And 
+           DATEPART(DD,GETDATE())>DATEPART(DD,A.JoiningDate)) Then 1 Else 0 End As PermEmp,
+       Case When A.WStatus IN ('W','F') AND B.EmpCode IS Not NULL Then 1 Else 0 End As PF_Member,A.WStatus,
+       B.PFMonth,B.PFYear,C.PFCode,A.FathersName,A.HusbandName,PerAddress,PreAddress,A.BirthDate, A.CurrRate,B.PFMember,
+       isnull(E.Name,'........................') As NomineeName,IsNull(E.BirthDate,'01-JAN-1900') AS NomineeBirthDate,
+       isnull(E.Relation,'........................') As Relation,IsNull(E.Percentage,0) Percentage,A.RegId
+from Employee_Information A Left Outer Join
+     (SELECT * FROM New_Emp_PF_Member WHERE PFMember=1) B ON A.RegID=B.RegID Left Outer Join
+     (Select * FROM Acc_New_Ledger WHERE legStatus='S' AND FinalSettle='N') C ON A.ComID=C.comID AND A.RegID=C.RegID
+     INNER JOIN Company_Information D ON A.ComID=D.ID Left Join tblEmpNominee E On A.RegId=E.RegId
+WHERE A.MLeft=0 AND A.WStatus=@Wstatus AND A.ComID=@Comid AND A.EmployeeCode=@EmpCode
+ORDER BY 3,4,1
+End
+
+Else IF @EmpCode='' AND @SignNI=1 AND @SignNotMember=1
+Begin
+select Top 100 Percent D.Name ComName,D.NameBangla ComNameBangla,A.EmployeeCode,A.Name,A.Department,A.Section,A.Designation,A.JoiningDate,
+       Case When DateDiff(MM,A.JoiningDate,GETDATE())>4 OR (DateDiff(MM,A.JoiningDate,GETDATE())=4 And 
+           DATEPART(DD,GETDATE())>DATEPART(DD,A.JoiningDate)) Then 1 Else 0 End As PermEmp,
+       Case When A.WStatus IN ('W','F') AND B.EmpCode IS Not NULL Then 1 Else 0 End As PF_Member,A.WStatus,
+       B.PFMonth,B.PFYear,C.PFCode,A.FathersName,A.HusbandName,PerAddress,PreAddress,BirthDate, A.CurrRate,B.PFMember
+from Employee_Information A Left Outer Join
+     (SELECT * FROM New_Emp_PF_Member) B ON A.RegID=B.RegID Left Outer Join
+     (Select * FROM Acc_New_Ledger WHERE legStatus='S' AND FinalSettle='N') C ON A.ComID=C.comID AND A.RegID=C.RegID
+     INNER JOIN Company_Information D ON A.ComID=D.ID
+WHERE A.MLeft=0 AND A.WStatus=@Wstatus AND A.ComID=@Comid AND (B.EmpCode IS NULL OR B.PFMember=0)
+ORDER BY 3,4,1
+End
+
+Else IF @EmpCode='' AND @SignNI=1 AND @SignNotMember=0
+Begin
+select Top 100 Percent D.Name ComName,D.NameBangla ComNameBangla,A.EmployeeCode,A.Name,A.Department,A.Section,A.Designation,A.JoiningDate,
+       Case When DateDiff(MM,A.JoiningDate,GETDATE())>4 OR (DateDiff(MM,A.JoiningDate,GETDATE())=4 And 
+           DATEPART(DD,GETDATE())>DATEPART(DD,A.JoiningDate)) Then 1 Else 0 End As PermEmp,
+       Case When A.WStatus IN ('W','F') AND B.PFMember=1 Then 1 Else 0 End As PF_Member,A.WStatus,
+       B.PFMonth,B.PFYear,'' PFCode,A.FathersName,A.HusbandName,PerAddress,PreAddress,BirthDate, A.CurrRate,B.PFMember
+from Employee_Information A INNER Join
+     (SELECT * FROM New_Emp_PF_Member WHERE PFMember=0) B ON A.RegID=B.RegID
+     INNER JOIN Company_Information D ON A.ComID=D.ID
+WHERE A.MLeft=0 AND A.WStatus=@Wstatus AND A.ComID=@Comid
+ORDER BY 3,4,1
+End
+
+Else IF @EmpCode='' AND @SignNI=0 AND @SignNotMember=1
+Begin
+select Top 100 Percent D.Name ComName,D.NameBangla ComNameBangla,A.EmployeeCode,A.Name,A.Department,A.Section,A.Designation,A.JoiningDate,
+       Case When DateDiff(MM,A.JoiningDate,GETDATE())>4 OR (DateDiff(MM,A.JoiningDate,GETDATE())=4 And 
+           DATEPART(DD,GETDATE())>DATEPART(DD,A.JoiningDate)) Then 1 Else 0 End As PermEmp,
+       Case When A.WStatus IN ('W','F') AND B.PFMember=1 Then 1 Else 0 End As PF_Member,A.WStatus,
+       B.PFMonth,B.PFYear,'' PFCode,A.FathersName,A.HusbandName,PerAddress,PreAddress,BirthDate, A.CurrRate,B.PFMember
+from Employee_Information A Left Outer Join
+     (SELECT * FROM New_Emp_PF_Member) B ON A.RegID=B.RegID
+     INNER JOIN Company_Information D ON A.ComID=D.ID
+WHERE A.MLeft=0 AND A.WStatus=@Wstatus AND A.ComID=@Comid AND B.EmpCode IS NULL
+ORDER BY 3,4,1
+End
+
+Else IF @EmpCode='' AND @SignNI=0 AND @SignNotMember=0
+Begin
+select Top 100 Percent D.Name ComName,D.NameBangla ComNameBangla,A.EmployeeCode,A.Name,A.Department,A.Section,A.Designation,A.JoiningDate,
+       Case When DateDiff(MM,A.JoiningDate,GETDATE())>4 OR (DateDiff(MM,A.JoiningDate,GETDATE())=4 And 
+           DATEPART(DD,GETDATE())>DATEPART(DD,A.JoiningDate)) Then 1 Else 0 End As PermEmp,
+       Case When A.WStatus IN ('W','F') AND B.EmpCode IS Not NULL Then 1 Else 0 End As PF_Member,A.WStatus,
+       B.PFMonth,B.PFYear,C.PFCode,A.FathersName,A.HusbandName,PerAddress,PreAddress,BirthDate, A.CurrRate,B.PFMember
+from Employee_Information A Inner Join
+     (SELECT * FROM New_Emp_PF_Member WHERE PFMember=1) B ON A.RegID=B.RegID Left Outer Join
+     (Select * FROM Acc_New_Ledger WHERE legStatus='S' AND FinalSettle='N') C ON A.ComID=C.comID AND A.RegID=C.RegID
+     INNER JOIN Company_Information D ON A.ComID=D.ID
+WHERE A.MLeft=0 AND A.WStatus=@Wstatus AND A.ComID=@Comid
+ORDER BY 3,4,1
+End

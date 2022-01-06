@@ -1,0 +1,179 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prc_EmpLeaveEnjoyDetail]    Script Date: 12/24/2018 10:43:44 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROC [dbo].[prc_EmpLeaveEnjoyDetail] @RegId varchar(30),@Year int
+--ALTER PROC [dbo].[prc_EmpLeaveEnjoyDetail] @CompID varchar(30),@EmpCode varchar(30),@Year int
+AS 
+-- EXEC  prc_EmpLeaveEnjoyDetail 1,'457',2017
+-- EXEC  prc_EmpLeaveEnjoyDetail '105794',2017
+
+
+declare @CompID int;
+declare @EmpCode varchar(50);
+
+select * 
+into #tblempInfo
+from fn_EmployeeInfoByRegID(@RegId)
+
+set @CompID=(select ComID from #tblempInfo)
+
+set @EmpCode=(select EmployeeCode from #tblempInfo)
+
+
+
+
+
+CREATE TABLE #tbl_EmpLeaveEnjoyDetail(	
+	[LeaveType] [nvarchar](50) NULL,
+	[Total] decimal(10, 2) NOT NULL,
+	[Enjoy] decimal(10, 2) NOT NULL,
+	[Balance] decimal(10, 2) NOT NULL	
+) 
+
+insert into #tbl_EmpLeaveEnjoyDetail(LeaveType,Total,Enjoy,Balance)
+values('EL',0,0,0),
+('CL',0,0,0),
+('SL',0,0,0),
+('ML',0,0,0);
+
+
+if(@CompID=1)
+begin
+-------------EL--------------
+update #tbl_EmpLeaveEnjoyDetail set Total=isnull((SELECT cast(ELDays as decimal(10, 2))  FROM EMP_EL_Calculation WHERE ComID=@CompID  AND EmployeeCode=@EmpCode AND ELYear =@Year-1),0)
+where LeaveType='EL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='EL'),0) where LeaveType='EL';
+
+
+
+
+--------------CL---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=(select EmpCL FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  ComID=@CompID  AND EmployeeCode=@EmpCode))
+where LeaveType='CL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='CL'),0)where LeaveType='CL';
+
+
+--------------SL---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=(select EmpSL/1.4 FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  ComID=@CompID  AND EmployeeCode=@EmpCode))
+where LeaveType='SL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='SL'),0)where LeaveType='SL';
+
+
+
+
+--------------ML---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=(select EmpML FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  ComID=@CompID  AND EmployeeCode=@EmpCode))
+where LeaveType='ML';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='ML'),0)where LeaveType='ML';
+
+
+
+--------------------------------------------------------------
+End
+
+if(@CompID=7)
+begin
+-------------EL--------------
+update #tbl_EmpLeaveEnjoyDetail set Total=isnull((SELECT cast(ELDays as decimal(10, 2))  FROM EMP_EL_Calculation WHERE ComID=@CompID  AND EmployeeCode=@EmpCode AND ELYear =@Year-1),0)
+where LeaveType='EL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='EL'),0) where LeaveType='EL';
+
+
+
+
+--------------CL---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=(select EmpCL FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  ComID=@CompID  AND EmployeeCode=@EmpCode))
+where LeaveType='CL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='CL'),0)where LeaveType='CL';
+
+
+--------------SL---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=(select EmpSL/1.4 FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  ComID=@CompID  AND EmployeeCode=@EmpCode))
+where LeaveType='SL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='SL'),0)where LeaveType='SL';
+
+
+
+
+--------------ML---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=(select EmpML FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  ComID=@CompID  AND EmployeeCode=@EmpCode))
+where LeaveType='ML';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where  ComID=@CompID and ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND EmpCode=@EmpCode and LType='ML'),0)where LeaveType='ML';
+
+
+
+--------------------------------------------------------------
+End
+
+update #tbl_EmpLeaveEnjoyDetail set Balance=Total- Enjoy;
+
+
+
+select * 
+from #tbl_EmpLeaveEnjoyDetail
+
+
+
+
+  
+ 
+ 

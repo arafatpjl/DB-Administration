@@ -1,0 +1,42 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[OTReque_Report]    Script Date: 12/24/2018 09:52:35 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER Procedure [dbo].[OTReque_Report] @COMID INT,@DATE SMALLDATETIME,@DEPARTMENT Varchar(150),@SIGN INT
+AS
+DECLARE @Query Varchar(5000)
+
+--EXEC OTReque_Report '1','14-MaR-2018','SEWING','1'
+
+SET @SIGN=1
+--SET @DATE='14-MAR-2018'  Cast(@NewComId AS NVarchar)
+--SET @SIGN=3
+
+Set @Query='SELECT * FROM DailyOT_Vs_OTRequ
+WHERE comid='''+ Cast(@COMID AS NVarchar) +''' and DailyDate='''+  Cast(@DATE AS NVarchar) +'''  and DEPARTMENT='''+  Cast(@DEPARTMENT AS NVarchar) +''' '
+--Print(@Query)
+
+IF @SIGN=1
+BEGIN
+Set @Query=@Query + ' AND OT > OTReque'
+Exec(@Query)
+END
+Else IF @SIGN=2
+BEGIN
+Set @Query=@Query + ' AND OT < OTReque'
+Exec(@Query)
+END
+Else IF @SIGN=3
+BEGIN
+Set @Query=@Query + ' AND OT > OTReque AND OTReque=''00:00'''
+Exec(@Query)
+END
+Else IF @SIGN=4
+BEGIN
+Set @Query=@Query + ' AND OT < OTReque AND OT=''00:00'''
+Exec(@Query)
+END

@@ -1,0 +1,76 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcEfficiencyMonthly]    Script Date: 01/06/2019 13:16:10 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER proc [dbo].[prcEfficiencyMonthly] @condition varchar(500), @conditionHaving varchar(500), @conditionHaving2 varchar(500)
+as
+  BEGIN 
+DECLARE @query varchar(MAX)
+
+set @query ='SELECT        EmployeeCode,
+				Line,
+				SubLine,
+				COUNT(EmployeeCode) AS TotalDays,
+				(SUM(CAST(SUBSTRING(HourWork, 1, 2) AS decimal(10, 2))) + SUM(CAST(SUBSTRING(HourWork, 
+				4, 2) AS decimal(10, 2))) / 60) / COUNT(EmployeeCode) AS HourWorkAvg,
+				AVG(TargetHour) AS TotalTargetHour, SUM(TargetDay) AS TotalTargetDay, 
+				avg(AchiveDay) AS AchiveDayAvg,
+				SUM(TargetDay) / SUM(CAST(SUBSTRING(HourWork, 1, 2) AS decimal(10, 2))) + SUM(CAST(SUBSTRING(HourWork, 4, 2) AS decimal(10, 2))) / 60 AS TargetDayPer, 
+				SUM(AchiveDay) / SUM(CAST(SUBSTRING(HourWork, 1, 2) AS decimal(10, 2))) + SUM(CAST(SUBSTRING(HourWork,4, 2) AS decimal(10, 2))) / 60 AS AchiveDayPer, 
+				AVG(Efficiency) AS EfficiencyAvg,
+				'''' as Remarks,
+				Name, 
+				JoiningDate, 
+				SevLength, 
+				Department, 
+				Section, 
+				Designation 
+				
+				into #ViewEmpEfficiencyDaily
+                        
+FROM            dbo.ViewEmpEfficiencyDaily 
+ '+@condition+'
+ GROUP BY EmployeeCode, Line, SubLine,  Name, JoiningDate, SevLength, Department, Section, Designation 
+having  '+@conditionHaving+'
+ORDER BY EmployeeCode;
+
+
+
+
+SELECT        EmployeeCode as EmpCode,
+				Line,
+				SubLine,
+				TotalDays,
+				 HourWorkAvg,
+				TotalTargetDay, 
+				 AchiveDayAvg,
+				TargetDayPer, 
+				AchiveDayPer, 
+				EfficiencyAvg,
+				Remarks,
+				Name, 
+				JoiningDate, 
+				SevLength, 
+				Department, 
+				Section, 
+				Designation 				
+				from  #ViewEmpEfficiencyDaily where ((AchiveDayPer/TargetDayPer)*100)>'+@conditionHaving2+'
+
+';
+
+print @query;
+
+--set @query=replace(@query,'''''','''');
+
+--(AchiveDayPer/TargetDayPer)*100 as
+
+exec(@query);
+
+
+
+	end
+

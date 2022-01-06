@@ -1,0 +1,33 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAttend_Update_Day_Off]    Script Date: 01/06/2019 11:23:30 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcAttend_Update_Day_Off]  @ComID tinyInt, @EmpCode varchar(15), @Date smallDatetime, @UserName nvarchar(100),@UserPass nvarchar(100),@ComputerName nvarchar(100),@EntryDate SmallDateTime,@EntryTime SmallDateTime
+as
+
+    Declare  @Count tinyint, @TimeIn smallDateTime, @TimeOut smallDateTime, @IfFullOT tinyInt, @NextDayOut tinyInt
+        
+    Declare Cursor_Table scroll cursor
+	for Select ComID,EmpCode,DailyDate,TimeIn,TimeOut,CASE WHEN IfFullOT='Y' THEN 1 ELSE 0 END AS IfFullOT,
+       CASE WHEN ShiftN='Y' THEN 1 ELSE 0 END AS NextDayOut,@UserName,@UserPass,@ComputerName,@EntryDate,@EntryTime
+	From dbo.Emp_Daily_Attendance Where ComID = @ComID And EmpCode = @EmpCode And DailyDate = @Date
+	
+	open Cursor_Table
+	Select @Count = @@Cursor_Rows
+
+	While @Count>0
+	Begin
+		fetch next from Cursor_Table into @ComId, @EmpCode, @Date, @TimeIn, @TimeOut, @IfFullOT, @NextDayOut, @UserName, @UserPass, @ComputerName, @EntryDate, @EntryTime
+		Select  @ComId, @EmpCode, @Date, @TimeIn, @TimeOut, @IfFullOT, @NextDayOut, @UserName, @UserPass, @ComputerName, @EntryDate, @EntryTime
+
+
+Exec prcAttend_Update_Ind  @ComId, @EmpCode, @Date, @TimeIn, @TimeOut, @IfFullOT, @NextDayOut, @UserName, @UserPass, @ComputerName, @EntryDate, @EntryTime,'F'
+
+
+	select @Count = @Count - 1
+	End
+	Close Cursor_Table
+	Deallocate Cursor_Table

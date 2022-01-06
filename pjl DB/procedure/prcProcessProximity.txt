@@ -1,0 +1,677 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcProcessProximity]    Script Date: 01/06/2019 15:53:59 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER Proc [dbo].[prcProcessProximity] @Comid tinyint, @Date smallDateTime
+
+-- exec prcProcessProximity '5','29-dec-2018'
+  
+as
+	Declare @Err int, @RErr int
+	Select @Err = 0, @RErr = 0
+
+
+IF @Date<GETDATE()-5
+	begin
+		RAISERROR ('DATE MORE THAN 5 DAYS OLD IS NOT PERMITTED', 16, 1, 0, 'NOWAIT')
+		GOTO Last_Area
+	end
+
+	
+SET STATISTICS TIME ON;
+
+
+declare @AttnLockTo date;
+set @AttnLockTo=(SELECT    AttnLockTo FROM   DB_PJL_GROUP.dbo.Validity_Date);
+
+	if(@Date<@AttnLockTo)
+	begin
+		RAISERROR ('Message : Attendence Locked (Salary Already Paid)', 16, 1, 0, 'NOWAIT')
+		GOTO Last_Area
+	end
+	
+print ' Select Employee '
+
+SELECT ComID
+      ,@Date as  DailyDate
+      ,RegID
+      ,EmployeeCode as  EmpCode
+	  ,WStatus
+	  ,EmpAttID
+	   ,cast('1900-01-01 00:00:00' as smalldatetime) as ShiftIn 
+	  ,cast('1900-01-01 00:00:00' as smalldatetime) as ShiftLate
+	  ,cast('1900-01-01 00:00:00' as smalldatetime) as BreakHrs	
+      ,cast('1900-01-01 00:00:00' as smalldatetime) as  TimeIn
+	  ,cast('1900-01-01 00:00:00' as smalldatetime)  as  LateHrs      
+      ,cast('1900-01-01 00:00:00' as smalldatetime)  as  TimeOut
+	  ,cast('1900-01-01 00:00:00' as smalldatetime)  as  TimeOutRound	  
+      ,cast('1900-01-01 00:00:00' as smalldatetime)  as  DailyHrs
+      ,cast('1900-01-01 00:00:00' as smalldatetime)  as  ValidOT
+      ,cast('1900-01-01 00:00:00' as smalldatetime)  as  RestOT
+      ,cast('1900-01-01 00:00:00' as smalldatetime)  as  ExtraOT
+      ,cast('N' as nvarchar(1))  as  TiffAllow
+      ,cast(ShiftID as nvarchar(50))  as  Shiftname
+      ,cast('' as nvarchar(1))  as  ShiftN
+      ,cast('0' as int)  as  sign_subdayOT
+      ,cast('N' as nvarchar(1))  as  IfFullOT
+      ,cast('-' as nvarchar(1))  as  EmpStatus
+      ,cast('R' as nvarchar(1))  as  DayStatus
+      ,cast(BusAvail as nvarchar(1))  as  BusAvail    
+      ,cast('0' as int)  as  TransAllow
+      ,cast('0' as int)  as  DinnerAllow
+      ,cast('N' as nvarchar(1))  as  NextDayOut
+      ,cast('A' as nvarchar(1))  as  AttnStatus  
+	  ,cast('1900-01-01 00:00:00' as smalldatetime)  as  AttOffDate	
+	  into #temp_Daily_Attendance
+   FROM Employee_Information 
+  where ComID=@Comid and Mleft=0 and Mleave=0   AND AttOff='N';
+
+
+ print ' shift ID update from Emp_Transfer_Shift'
+
+--************* shift ID update from Emp_Transfer_Shift *********
+---------------------------------------------------
+
+update #temp_Daily_Attendance set Shiftname=ShiftID  from #temp_Daily_Attendance 
+Inner join Emp_Transfer_Shift 
+on 
+#temp_Daily_Attendance.RegId=Emp_Transfer_Shift.RegId 
+and 
+#temp_Daily_Attendance.DailyDate=Emp_Transfer_Shift.DailyDate;
+
+
+ print 'shift Detail update '
+
+--************* shift Detail update *********
+---------------------------------------------------
+update #temp_Daily_Attendance 
+set 
+Shiftname=B.ShiftName,
+ShiftN=B.ShiftN,
+ShiftLate=B.ShiftLate,
+BreakHrs=B.BreakHrs,
+ShiftIn=B.ShiftIn 
+from #temp_Daily_Attendance as A 
+Inner join Emp_General_Shift  as B on A.Shiftname=B.ShiftID
+
+
+ print 'shift Detail update from Daily_Process_Others '
+--************* shift Detail update from Daily_Process_Others *********
+---------------------------------------------------
+update #temp_Daily_Attendance 
+set 
+ShiftLate=B.ShiftLate,
+BreakHrs=B.BreakHrs,
+ShiftIn=B.ShiftIn 
+from #temp_Daily_Attendance as A 
+Inner join Daily_Process_Others  as B on A.DailyDate Between B.FrDate and B.ToDate
+where A.Shiftname='GENERAL'
+
+
+
+
+ print 'update TimeIn from Emp_Daily_Attendance '
+
+ update #temp_Daily_Attendance 
+set 
+TimeIn=B.TimeIn,
+AttnStatus='M'
+from #temp_Daily_Attendance as A 
+Inner join Emp_Daily_Attendance  as B on 
+A.ComID=B.ComID 
+and 
+A.DailyDate=B.DailyDate
+and
+A.RegId=B.RegId
+and B.AttnStatus='M';
+
+
+
+
+
+
+ print 'update In / Out  from Prox_Main_Data // Day Shift '
+-- ************* update In / Out  from Prox_Main_Data // Day Shift *********
+---------------------------------------------------
+
+
+-- ************* update In / Out  from Prox_Main_Data // Day Shift *********
+---------------------------------------------------
+
+--Update In Time
+
+select 
+A.EmpAttID,
+Min(B.DailyTime) as TimeIn,
+ShiftN
+into #ProximityDay_TimeIn
+from #temp_Daily_Attendance as A 
+Inner join Proximity.dbo.Prox_Main_Data  as B on 
+A.ComID=B.ComID 
+and 
+A.DailyDate=B.DailyDate
+and 
+B.DailyTime between DATEADD(hour,-1,A.ShiftIn) and DATEADD(hour,4,A.ShiftIn)
+and 
+A.EmpAttID=B.ProxID 
+where ShiftN='N'
+group by A.EmpAttID,ShiftN
+
+
+update #temp_Daily_Attendance 
+set 
+TimeIn=B.TimeIn
+from #temp_Daily_Attendance as A 
+Inner join #ProximityDay_TimeIn  as B on 
+A.EmpAttID=B.EmpAttID  and A.AttnStatus<>'M';
+
+
+
+
+--Update Out Time
+
+select 
+A.EmpAttID,
+Max(B.DailyTime) as TimeOut,
+ShiftN
+into #ProximityDay_TimeOut
+from #temp_Daily_Attendance as A 
+Inner join Proximity.dbo.Prox_Main_Data  as B on 
+A.ComID=B.ComID 
+and 
+A.DailyDate=B.DailyDate
+and 
+B.DailyTime >DATEADD(hour,4,A.ShiftIn)
+and 
+A.EmpAttID=B.ProxID 
+where ShiftN='N'
+group by A.EmpAttID,ShiftN
+
+
+
+
+update #temp_Daily_Attendance 
+set 
+TimeOut=B.TimeOut
+from #temp_Daily_Attendance as A 
+Inner join #ProximityDay_TimeOut  as B on 
+A.EmpAttID=B.EmpAttID ;
+
+
+
+
+print 'update In / Out  from Prox_Main_Data // Night Shift '
+
+-- ************* update In / Out  from Prox_Main_Data // Night Shift *********
+---------------------------------------------------
+
+--Update In Time
+select 
+A.EmpAttID,
+Min(B.DailyTime) as TimeIn,
+ShiftN
+into #ProximityNightIn
+from #temp_Daily_Attendance as A 
+Inner join Proximity.dbo.Prox_Main_Data  as B on 
+A.ComID=B.ComID 
+and 
+A.DailyDate=B.DailyDate
+and 
+B.DailyTime between DATEADD(hour,-1,A.ShiftIn) and DATEADD(hour,4,A.ShiftIn)
+and 
+A.EmpAttID=B.ProxID 
+where ShiftN='Y'
+group by A.EmpAttID,ShiftN
+
+
+update #temp_Daily_Attendance 
+set 
+TimeIn=B.TimeIn,
+NextDayOut='Y'
+from #temp_Daily_Attendance as A 
+Inner join #ProximityNightIn  as B on 
+A.EmpAttID=B.EmpAttID ;
+
+
+--Update In TimeOut
+select 
+A.EmpAttID,
+Min(B.DailyTime) as TimeOut,
+ShiftN
+into #ProximityNightOut
+from #temp_Daily_Attendance as A 
+Inner join Proximity.dbo.Prox_Main_Data  as B on 
+A.ComID=B.ComID 
+and 
+DATEADD(day,1, A.DailyDate)=B.DailyDate
+and 
+B.DailyTime < DATEADD(hour,-1,A.ShiftIn)
+and 
+A.EmpAttID=B.ProxID 
+where ShiftN='Y'
+group by A.EmpAttID,ShiftN
+
+
+
+update #temp_Daily_Attendance 
+set 
+TimeOut=B.TimeOut,
+NextDayOut='Y'
+from #temp_Daily_Attendance as A 
+Inner join #ProximityNightOut  as B on 
+A.EmpAttID=B.EmpAttID ;
+
+
+
+
+ print ' update Out time >> 2 Number task . Sorry for it <:)   '
+
+-- ************* update Out time >> 2 Number task . Sorry for it <:)    *********
+-----------------------------------------
+update #temp_Daily_Attendance 
+set TimeOut=TimeOut-'1900-01-01 00:15:00'
+where TimeOut between '1900-01-01 18:46:00' and '1900-01-01 18:59:00' and WStatus in ('W')
+
+
+
+
+ print ' Update Outtime from Time_Round  '
+-- ************* Update Outtime from Time_Round   *********
+---------------------------------------------------
+
+
+update #temp_Daily_Attendance set TimeOutRound=TimeOut
+
+update #temp_Daily_Attendance 
+set 
+TimeOutRound=B.ActionTime
+from #temp_Daily_Attendance as A 
+Inner join Time_Round  as B on 
+B.IsStop=0 and WStatus='W' And DayStatus Not In ('W','G','O')and TimeOut between FrTime and ToTime;
+
+
+
+
+
+ print ' Delete which IN/Out is null  '
+-- ************* Delete which IN/Out is null   *********
+---------------------------------------------------
+
+delete from  #temp_Daily_Attendance  
+where TimeIn='1900-01-01 00:00:00' and TimeOut='1900-01-01 00:00:00'
+
+
+
+
+--ValidOT	-- Holidays Full Daily Hours , then Daily Hours is 00:00 and Extra OT is 00:00
+--RestOT	-- Regular day OT
+--ExtraOT	-- Manual Provided BY HR
+--TiffAllow	-- Y when dailyHours more then 12:00 hours else N
+--Shiftname	-- 
+--ShiftN	--
+--sign_subdayOT--
+--IfFullOT	-- Manual Provided BY HR
+--EmpStatus
+--DayStatus
+--BusAvail    
+--TransAllow	-- Manual Provided BY HR
+--DinnerAllow	-- Manual Provided BY HR
+--NextDayOut	-- IF Night Shift Next day out 
+--AttnStatus    
+
+
+
+ print ' update LateHrs  '
+
+-- ************* update LateHrs  *********
+---------------------------------------------------
+
+update #temp_Daily_Attendance  
+set ShiftLate=ShiftLate+(case when BusAvail='Y' then '1900-01-01 00:25:00' else '1900-01-01 00:00:00' end)
+from  #temp_Daily_Attendance
+
+
+update #temp_Daily_Attendance  
+set LateHrs=case when TimeIn>ShiftLate then  TimeIn-ShiftLate else  '1900-01-01 00:00:00' end 
+from  #temp_Daily_Attendance
+
+
+-- exec prcProcessProximity '1','29-may-2018'
+--select * from #temp_Daily_Attendance where  RegID='90'
+--return 
+
+
+
+ print ' update DailyHrs '
+
+-- ************* update DailyHrs  *********
+-- If Late more then on hour then calculate daily hour from TimeIN else ShiftTime
+---------------------------------------------------
+
+update #temp_Daily_Attendance  
+set DailyHrs=case 
+when TimeOutRound>ShiftIn and TimeIn<DATEADD(hour,1,ShiftIn) then  TimeOutRound-ShiftIn 
+when TimeOutRound>TimeIn and TimeIn>=DATEADD(hour,1,ShiftIn) then  TimeOutRound-TimeIn 
+else  '1900-01-01 00:00:00' end 
+from  #temp_Daily_Attendance  where ShiftN='N'
+
+
+
+update #temp_Daily_Attendance  
+set DailyHrs=case 
+when TimeIn<DATEADD(hour,1,ShiftIn) then  DATEADD(day,1,TimeOutRound)-ShiftIn
+else  DATEADD(day,1,TimeOutRound)-TimeIn end
+from  #temp_Daily_Attendance  where ShiftN='Y'
+
+
+
+ print ' substract BreakHrs from dailyHours  '
+-- substract BreakHrs from dailyHours 
+update #temp_Daily_Attendance  
+set DailyHrs=case when DailyHrs>BreakHrs then  DailyHrs-BreakHrs else  '1900-01-01 00:00:00' end 
+from  #temp_Daily_Attendance where DailyHrs>='1900-01-01 08:00:00';
+
+
+--(DailyHrs between '1900-01-01 08:00:00' and '1900-01-01 11:59:00')  or DailyHrs>='1900-01-01 12:30:00'
+
+-- Add  BreakHrs In  dailyHours where hour>=12 and Shiftname='GENERAL','SHIFT-9 AM','NIGHT-8 PM','NIGHT-9 PM'
+
+
+
+
+update #temp_Daily_Attendance  
+set DailyHrs=DailyHrs+BreakHrs 
+from  #temp_Daily_Attendance 
+where DailyHrs>= '1900-01-01 11:30:00' 
+
+
+
+
+--update #temp_Daily_Attendance  
+--set DailyHrs='1900-01-01 12:00:00' 
+--from  #temp_Daily_Attendance 
+--where (DailyHrs between '1900-01-01 11:30:00' and '1900-01-01 11:59:00')
+-- and Shiftname in ('GENERAL','SHIFT-8 AM','SHIFT-9 AM','NIGHT-8 PM','NIGHT-9 PM')
+
+
+
+
+ print ' update DayStatus '
+-- ************* update DayStatus  *********
+---------------------------------------------------
+update #temp_Daily_Attendance  
+set DayStatus=Status
+from  #temp_Daily_Attendance as A
+Inner Join Daily_Process_Status as B
+On 
+A.DailyDate=B.prDate
+
+
+update #temp_Daily_Attendance  
+set DayStatus=B.DayStatus
+from  #temp_Daily_Attendance as A
+Inner Join Emp_Day_Off_Entry as B
+On 
+A.DailyDate=B.DateWH AND A.COMID=B.ComID AND A.EMPCODE=B.EMPCODE
+
+
+
+ print ' update EmpStatus '
+-- ************* update EmpStatus  *********
+---------------------------------------------------
+update #temp_Daily_Attendance  
+set EmpStatus=case 
+when LateHrs>'1900-01-01 00:00:00' then  'L' else  'P' end 
+from  #temp_Daily_Attendance
+
+
+ print ' Half Day '
+-----  Half Day ---
+update #temp_Daily_Attendance  
+set 
+EmpStatus='H'
+from  #temp_Daily_Attendance
+where DailyHrs between '1900-01-01 04:00:00' and '1900-01-01 05:59:00'
+
+
+
+ print '  absent if  DailyHrs is less '
+-----  absent if  DailyHrs is less ---
+update #temp_Daily_Attendance  
+set 
+EmpStatus='A'
+from  #temp_Daily_Attendance
+where DailyHrs > '1900-01-01 0:00:01' and DailyHrs < '1900-01-01 04:00:00' and  DayStatus not in  ('W','G','O')
+
+
+update #temp_Daily_Attendance  
+set 
+EmpStatus='A'
+from  #temp_Daily_Attendance
+where DailyHrs > '1900-01-01 0:00:01' and DailyHrs < '1900-01-01 04:00:00' and  DayStatus  in  ('W','G','O')
+
+
+
+ print '  Missing '
+-----  Missing ---
+update #temp_Daily_Attendance  
+set 
+EmpStatus='-'
+,TimeOut='1900-01-01 00:00:00'
+from  #temp_Daily_Attendance
+where TimeIn=TimeOut
+
+
+ print '  update ValidOT '
+-- ************* update ValidOT  *********
+---------------------------------------------------
+update #temp_Daily_Attendance  
+set 
+DailyHrs='1900-01-01 00:00:00',
+ValidOT=DailyHrs, --case when DailyHrs>'1900-01-01 08:00:00' then  DailyHrs else  '1900-01-01 00:00:00' end ,
+RestOT='1900-01-01 00:00:00',
+ExtraOT='1900-01-01 00:00:00',
+EmpStatus=DayStatus
+from  #temp_Daily_Attendance where DayStatus in  ('W','G','O')
+
+
+print '  update RestOT '
+-- ************* update RestOT  *********
+---------------------------------------------------
+update #temp_Daily_Attendance  
+set RestOT=case when DailyHrs>'1900-01-01 08:00:00' then  DailyHrs-'1900-01-01 08:00:00' else  '1900-01-01 00:00:00' end 
+from  #temp_Daily_Attendance
+
+
+print '  update TiffAllow '
+-- ************* update TiffAllow  *********
+---------------------------------------------------
+update #temp_Daily_Attendance  
+set TiffAllow=case when DailyHrs='1900-01-01 12:00:00' then  'Y' else  'N' end 
+from  #temp_Daily_Attendance where WStatus in ('W') --	where Shiftname='GENERAL'
+
+
+print '  update TimeIn /TimeOut Missing  status'
+-- ************* TimeIn /TimeOut Missing   *********
+---------------------------------------------------
+
+update #temp_Daily_Attendance  
+set 
+EmpStatus='-',
+DailyHrs='1900-01-01 00:00:00' ,
+ValidOT='1900-01-01 00:00:00',
+RestOT='1900-01-01 00:00:00',
+ExtraOT='1900-01-01 00:00:00'
+where TimeIn ='1900-01-01 00:00:00' or TimeOut='1900-01-01 00:00:00'
+
+
+print ' Daily Hours Missing'
+-- ************* Daily Hours Missing   *********
+---------------------------------------------------
+update #temp_Daily_Attendance  
+set 
+EmpStatus='-',
+ValidOT='1900-01-01 00:00:00',
+RestOT='1900-01-01 00:00:00',
+ExtraOT='1900-01-01 00:00:00'
+from  #temp_Daily_Attendance
+where DailyHrs='1900-01-01 00:00:00' and DayStatus not in  ('W','G','O')
+
+
+
+print 'Daily Hours Missing  -- DailyHrs = ValidOT  FOR W /G'
+-- ************* Daily Hours Missing  -- DailyHrs = ValidOT  FOR W /G *********
+--------------------------------------------------------
+update #temp_Daily_Attendance  
+set 
+EmpStatus='-',
+ValidOT='1900-01-01 00:00:00',
+RestOT='1900-01-01 00:00:00',
+ExtraOT='1900-01-01 00:00:00'
+from  #temp_Daily_Attendance
+where ValidOT='1900-01-01 00:00:00' and DayStatus in  ('W','G','O')
+
+
+print 'Delete which is shift change in Holiday . Take wrong Next day In as holiday out time'
+----  Delete which is shift change in Holiday . Take wrong Next day In as holiday out time
+--  delete from #temp_Daily_Attendance where EmpStatus='-' and  DayStatus  In ('W','G','O')
+
+
+
+print 'Update Out Time of Manual Data '
+-- *************  Out Time Update of Manual Data   *********
+---------------------------------------------------
+
+update Emp_Daily_Attendance 
+set  
+		TimeOut=B.TimeOut
+		,DailyHrs=B.DailyHrs
+		,ValidOT=B.ValidOT
+		,RestOT=B.RestOT
+		,ExtraOT=B.ExtraOT
+		,TiffAllow=B.TiffAllow
+		,IfFullOT=B.IfFullOT
+		,EmpStatus=B.EmpStatus
+		,DayStatus=B.DayStatus
+		,BusAvail =B.BusAvail  
+		,TransAllow=B.TransAllow
+		,DinnerAllow=B.DinnerAllow 
+		,CompID='0'
+
+		from Emp_Daily_Attendance as A 
+		Inner join #temp_Daily_Attendance  as B on 
+		A.ComID=B.ComID 
+		and 
+		A.DailyDate=B.DailyDate
+		and
+		A.RegId=B.RegId
+		and A.AttnStatus='M' and A.TimeOut='1900-01-01 00:00:00';
+
+
+print 'Final Data Update'
+-- ************* Final Data Update  *********
+---------------------------------------------------
+
+
+
+-- ************* Save Data FROM Emp_Daily_Attendance which is NOT IN #temp_Daily_Attendance ( Manual Updated OR OFF DAY) *********
+
+delete from #temp_Daily_Attendance where ComID=@Comid AND DailyDate=@Date AND  RegID in (select RegID from Emp_Daily_Attendance  where  ComID=@Comid AND DailyDate=@Date and  AttnStatus='M')
+
+
+select * 
+into #Emp_Daily_Attendance_Manual
+from Emp_Daily_Attendance where  ComID=@Comid AND DailyDate=@Date and RegID not In (select RegID from #temp_Daily_Attendance)
+
+--select * from #Emp_Daily_Attendance_Manual;
+
+
+delete from Emp_Daily_Attendance where ComID=@Comid AND DailyDate=@Date 
+
+
+insert into Emp_Daily_Attendance
+select * from #Emp_Daily_Attendance_Manual
+
+
+
+-- exec prcProcessProximity '1','12-april-2018'
+
+--select * from  #temp_Daily_Attendance
+--return
+
+
+-- ************* Final Data Update  *********
+---------------------------------------------------
+
+Insert Into Emp_Daily_Attendance
+(ComID
+      ,DailyDate
+	  ,RegID
+      ,EmpCode
+      ,TimeIn
+      ,LateHrs
+      ,TimeOut
+      ,DailyHrs
+      ,ValidOT
+      ,RestOT
+      ,ExtraOT
+      ,TiffAllow
+      ,ShiftN
+      ,IfFullOT
+      ,EmpStatus
+      ,DayStatus
+      ,BusAvail    
+      ,TransAllow
+      ,DinnerAllow
+      ,NextDayOut
+      ,AttnStatus   
+      ,Shiftname
+      ,sign_subdayOT
+	  ,EntryTime
+	  ,CompID)
+SELECT ComID
+      ,DailyDate
+	  ,RegID
+      ,EmpCode
+      ,TimeIn
+      ,LateHrs
+      ,TimeOut
+      ,DailyHrs
+      ,ValidOT
+      ,RestOT
+      ,ExtraOT
+      ,TiffAllow
+      ,ShiftN
+      ,IfFullOT
+      ,EmpStatus
+      ,DayStatus
+      ,BusAvail    
+      ,TransAllow
+      ,DinnerAllow
+      ,NextDayOut
+      ,AttnStatus   
+      ,Shiftname
+      ,sign_subdayOT
+	  ,GETDATE()
+	  ,EmpAttID
+  FROM #temp_Daily_Attendance where RegID not In (select RegID from Emp_Daily_Attendance  where  DailyDate=@Date) -- If Company Change so this condition 
+
+
+ --  SELECT *  from Emp_Daily_Attendance where ComID=@Comid AND DailyDate=@Date
+
+
+ -- prcUpdate_Daily_AttendanceN
+ -- EXEC prcUpdate_Daily_AttendanceN @Comid,@Date,@Date
+
+
+
+Last_Area:
+
+If @Err > 0
+Begin
+	RAISERROR ('Error Occured When Downloading', 16, 1, 0, 'NOWAIT')
+End

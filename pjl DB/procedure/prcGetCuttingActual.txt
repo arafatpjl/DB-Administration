@@ -1,0 +1,147 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcGetCuttingActual]    Script Date: 01/06/2019 13:25:30 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER Proc [dbo].[prcGetCuttingActual] @Comid tinyint,@ReportType varchar(50), @DateFrom smallDateTime, @DateTo smallDateTime
+
+
+-- exec prcGetCuttingActual '1','Cut Actu','19-Nov-2018','19-Nov-2018'
+
+-- exec prcGetCuttingActual '1','Sew Actu','19-Nov-2018','19-Nov-2018'
+
+-- exec prcGetCuttingActual '1','Mat Plan','01-nov-2018','19-nov-2018'
+  
+as
+
+ --Cut Act
+--Sew Act
+--Mat Plan
+
+declare @Process  varchar(50);
+
+
+set @Process=@ReportType;
+
+
+if(@ReportType='Cut Actu')
+
+begin
+
+	SELECT 
+		PO_ID
+		,Daily_Date
+		,Process
+		,sum(Qty) ActualQty
+		into #tblPO_Sub
+		FROM tblPO_Sub   
+		where Process=@Process and Daily_Date=@DateFrom
+		group by  Daily_Date,Process,PO_ID
+
+
+
+	SELECT 
+			Management_Factory_Code
+			,Branch_Factory_Code
+			,Branch_Factory_Code as  Prodction_Factory
+			,PO
+			,PF as  ReferenceNo
+			,ColorID
+			,SizeID			
+			, convert(varchar, Daily_Date, 112) as Date
+			,ActualQty as Qty
+			,'' as FreeItem01
+			,'' as FreeItem02
+			,'' as FreeItem03
+			,'' as FreeItem04
+			,'' as FreeItem05
+			,'0' as TransType
+			,CONVERT(varchar(50), getdate(), 127)+'Z'  as TransTime
+			FROM tblPO_Main Inner Join #tblPO_Sub on
+			tblPO_Main.ID=#tblPO_Sub.PO_ID
+			order by PO,SizeID
+
+			end
+
+
+
+			
+if(@ReportType='Sew Actu')
+
+begin
+
+	SELECT 
+		PO_ID
+		,Daily_Date
+		,Process
+		,SewLine
+		,sum(Qty) ActualQty
+		into #tblPO_Sub_sew
+		FROM tblPO_Sub   
+		where Process=@Process and Daily_Date=@DateFrom
+		group by  Daily_Date,Process,SewLine,PO_ID
+
+
+
+	SELECT 
+			Management_Factory_Code
+			,Branch_Factory_Code
+			,Branch_Factory_Code as  Prodction_Factory
+			,Branch_Factory_Code as  Sewing_Factory
+			,SewLine as  Sewing_Line
+			,PO
+			,PF as  ReferenceNo
+			,ColorID
+			,SizeID			
+		    , convert(varchar, Daily_Date, 112) as Date
+			,ActualQty as Qty
+			,'' as FreeItem01
+			,'' as FreeItem02
+			,'' as FreeItem03
+			,'' as FreeItem04
+			,'' as FreeItem05
+			,'0' as TransType
+			,CONVERT(varchar(50), getdate(), 127)+'Z'  as TransTime
+			FROM tblPO_Main Inner Join #tblPO_Sub_sew on
+			tblPO_Main.ID=#tblPO_Sub_sew.PO_ID
+			order by PO,SizeID
+
+			end
+
+
+if(@ReportType='Mat Plan')
+
+begin
+
+SELECT
+			Management_Factory_Code
+			,Branch_Factory_Code
+			,Branch_Factory_Code as  Production_Factory
+			,Branch_Factory_Code as  Sewing_Factory
+			,PO
+			,PF as  ReferenceNo
+			,ColorID							
+		    ,convert(varchar, DATEADD(DD,-90,ETA_WH), 112) as Date
+			,sum(Qty) Qty
+			,'' as FreeItem01
+			,'' as FreeItem02
+			,'' as FreeItem03
+			,'' as FreeItem04
+			,'' as FreeItem05
+			,'0' as TransType
+			,CONVERT(varchar(50), getdate(), 127)+'Z'  as TransTime
+			FROM tblPO_Main where DATEADD(DD,-90,ETA_WH) between @DateFrom and @DateTo
+			group by Management_Factory_Code
+			,Branch_Factory_Code
+			,Branch_Factory_Code
+			,Branch_Factory_Code 
+			,PO
+			,PF
+			,ColorID					
+		    ,convert(varchar, DATEADD(DD,-90,ETA_WH), 112)
+			order by PO,convert(varchar, DATEADD(DD,-90,ETA_WH), 112)
+end

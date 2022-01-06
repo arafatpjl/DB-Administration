@@ -1,0 +1,152 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcJobCard]    Script Date: 01/06/2019 15:47:56 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER OFF
+GO
+ALTER Proc [dbo].[prcJobCard] @ComID int, @FromDate Datetime, @ToDate Datetime, @EmpCode varchar(15)
+as
+--	USE FOR IN, OUT, IN & OUT, PRESENT
+
+--	Declare @ComID int, @FromDate Datetime, @ToDate Datetime, @EmpCode varchar(15)
+--	Select @ComID = 1, @FromDate = '03-01-05', @ToDate = '03-31-05',@EmpCode ='00650'
+
+	Truncate Table Temp_Job_Card_Sub
+
+--		=========== 	Regular Present	Employee	========================
+begin
+--	Print '1'
+	Insert Temp_Job_Card_Sub (ComID, EmpCode, DailyDate,  TimeIn, TimeOut, EmpStatus, ShiftN, ShiftIn, ShiftLate, BreakHrs, LateHrs, DailyHrs, ValidOT, RestOT, ExtraOT, BusAvail)
+	Select 'ComID' = @ComID, E.EmployeeCode, T.DailyDate, 'MinTime'=Min(T.DailyTime), 'MaxTime' = Max(T.DailyTime), 'EmpStatus'='P', 'Shift N'='N', 'ShiftIn'="00:00", 'Shift Late'="00:00", 'BreakHrs'="00:00", 'LateHrs'="00:00", 'DailyHrs'="00:00",  'ValidOT'="00:00", 'RestOT'="00:00", 'ExtraOT'="00:00", E.BusAvail
+	From Emp_Daily_Time T 
+	Inner Join Employee_Information E  On E.EmployeeCode = T.EmpCode and E.ComID = T.ComID
+	Where T.ComID = @ComID and T.DailyDate between @FromDate and @ToDate and E.EmployeeCode = @EmpCode
+	Group By T.DailyDate, E.EmployeeCode, E.BusAvail
+end
+
+--		=========== 	Night Shift (Yes -  IN, OUT ='00:00')   ========================
+begin
+--	Print '2'
+	Update Temp_Job_Card_Sub
+	Set ShiftN = 'Y' , TimeIn = TimeOut, TimeOut = "00:00"
+	From Temp_Job_Card_Sub S 
+	Inner Join Emp_Daily_Shift_N N on S.EmpCode = N.EmpCode and S.DailyDate = N.DailyDate 
+	Where N.Comid = @ComID and N.DailyDate  between @FromDate and @ToDate  and S.EmpCode = @EmpCode
+end
+
+--		=========== 		Night Shift (Yes - OUT )	========================
+begin
+--	Print '3'
+	Truncate Table TEMP_SHIFTN_ENTRY
+End
+
+Begin
+	INSERT TEMP_SHIFTN_ENTRY (COMID, EMPCODE, DAILYDATE, MINTIME, MAXTIME)
+	SELECT @ComID, T.EmpCode, A.DailyDate ,  isnull(min(T.DailyTime),"00:00"), isnull(max(T.DailyTime),"00:00")
+	From Temp_Job_Card_Sub A inner join Emp_Daily_Time T on A.EmpCode = T.EmpCode and A.ComID = T.ComID 
+	Where  A.ShiftN = 'Y' and A.DailyDate Between @FromDate and @ToDate and T.DailyDate =dateadd(d,1, A.DailyDate) and A.EmpCode = @EmpCode
+	Group By T.EmpCode, A.DailyDate
+	order By T.EmpCode, A.DailyDate
+end
+
+begin
+--	Print '4'
+ 	Update Temp_Job_Card_Sub
+	Set TimeOut = S.MinTime
+	From Temp_Job_Card_Sub A Inner Join TEMP_SHIFTN_ENTRY S On A.EmpCode = S.EmpCode and A.ComID  = S.ComID and A.DailyDate = S.DailyDate
+	Where A.ShiftN = 'Y'  and A.ComID = @ComID and A.EmpCode = @EmpCode
+end
+
+--	=========== 		ShiftIn, ShiftLate, BreakHrs	========================
+	Update Temp_Job_Card_Sub
+	Set ShiftIn = G.ShiftIn, ShiftLate = G.ShiftLate, BreakHrs = G.BreakHrs
+	From Temp_Job_Card_Sub S, Emp_General_Shift G 
+	Where S.EmpCode = @EmpCode and ComID = @ComID 
+
+--	=========== 			========================
+--	Update Temp_Job_Card_Sub
+--	Set EmpStatus = 'A'
+--	Where TimeOut = "00:00"
+
+--	=========== 		Absent Employee	========================
+--	Cleare Temp_Find_Absent
+	Begin
+		Truncate Table Temp_Find_Absent
+	end
+
+--	Insert Data Into Temp_Find_Absent 
+	begin
+		Insert Temp_Find_Absent (ComID, EmpCode, DailyDate)
+		Select A.ComID, A.EmpCode, P.prDate 
+		from Temp_Job_Card_Sub A 
+		Inner Join Employee_Information E On A.ComID = E.ComID and A.EmpCode = E.EmployeeCode
+		Inner Join Daily_Process_Status P On P.ComID = A.ComID --and P.PrDate <> A.DailyDate
+		Where P.prDate Between @FromDate and @ToDate and E.EmployeeCode = @EmpCode
+		Group By  A.ComID, A.EmpCode, P.prDate 
+	end
+
+--	Delete Data From Temp_Find_Absent	
+	Begin
+		Delete 	Temp_Find_Absent 
+		From Temp_Job_Card_Sub J 
+		Inner Join Temp_Find_Absent P ON J.EmpCode = P.EmpCode and J.ComID = P.ComID
+		Where P.ComID = @ComID and P.DailyDate = J.DailyDate --not in ( Select DailyDate From Temp_Emp_Daily_Atten Where ComID = @ComID  )
+	end
+
+--	Insert Data Into Temp_Emp_Daily_Atten
+	Begin
+		Insert Temp_Job_Card_Sub (ComID, EmpCode, DailyDate,  TimeIn, TimeOut, EmpStatus, ShiftN, ShiftIn, ShiftLate, BreakHrs, LateHrs, DailyHrs, ValidOT, RestOT, ExtraOT, BusAvail)
+		Select  @ComID,  T.EmpCode, T.DailyDate, "00:00", "00:00", 'A', 'N', "00:00", "00:00", "00:00", "00:00", "00:00", "00:00", "00:00", "00:00", E.BusAvail
+		From Temp_Find_Absent T
+		Inner Join Employee_Information E  On E.EmployeeCode = T.EmpCode and E.ComID = T.ComID
+		Inner Join Company_Information C On C.ID = E.ComID and T.ComID = C.ID	
+		Where T.ComID = @ComID and T.DailyDate between @FromDate and @ToDate and T.EmpCode=@EmpCode
+		Order by EmpCode, DailyDate
+	End
+
+--	Cleare Temp_Find_Absent
+	Begin
+		Truncate Table Temp_Find_Absent
+	end
+
+--	=========== 		Daily Hours (ShiftN = 'N')	========================
+	Update Temp_Job_Card_Sub
+	Set DailyHrs = Cast(datediff(N,TimeIn, TimeOut)/60 as Varchar(2)) + ":" + Cast(datediff(N,TimeIn, TimeOut)%60 as Varchar(2)) 
+	where ShiftN = 'N'
+
+--	=========== 		Daily Hours (ShiftN = 'Y')	========================
+	Update Temp_Job_Card_Sub
+	Set DailyHrs = Cast(datediff(N,TimeOut, dateAdd(dd,1,TimeIn))/60 as Varchar(2)) + ":" + Cast(datediff(N,TimeOut, dateAdd(dd,1,TimeIn))%60 as Varchar(2)) 
+	where ShiftN = 'Y'
+
+--	=========== 		ValidOT, RestOT, ExtraOT (ShiftID = 1)	========================
+	Declare @AllowOT SmallDateTime, @RegOT smallDateTime
+	Set @AllowOT = (Select AllowOT from Emp_General_Shift where ShiftID=1)
+	Set @RegOT = "08:00"
+
+--	Valid OT	
+	Update  Temp_Job_Card_Sub
+	Set ValidOT = Cast(datediff(n, @RegOT, DailyHrs)/60 as Varchar(12)) + ":" + Cast(datediff(n, @RegOT, DailyHrs)%60  as Varchar(12)) 
+	From Temp_Job_Card_Sub
+	Where datediff(n,  @RegOT, DailyHrs)>=0 and EmpStatus='P'
+
+--	RestOT
+	Update Temp_Job_Card_Sub
+	Set ValidOT = @AllowOT, RestOT = Cast(datediff(n, @AllowOT, ValidOT )/60 as Varchar(2)) + ":" + Cast(datediff(n, @AllowOT, ValidOT )%60  as Varchar(2)) 
+	Where  ValidOT> @AllowOT and EmpStatus='P'
+
+--	Extra OT
+	Update Temp_Job_Card_Sub
+	Set ExtraOT = E.ExtOT
+	From Temp_Job_Card_Sub S 
+	Inner Join Emp_Daily_Extra_OT E On E.ComID = S.ComID and E.EmpCode = S.EmpCode and E.DailyDate = S.DailyDate
+	Where S.EmpCode = @EmpCode and S.ComID = S.ComID  and EmpStatus='P'
+
+--	=========== 		Day Status	========================
+	Update Temp_Job_Card_Sub
+	Set DayStatus = E.Status
+	From Temp_Job_Card_Sub S 
+	Inner Join Daily_Process_Status E On E.ComID = S.ComID and E.prDate = S.DailyDate
+	Where S.EmpCode = @EmpCode and S.ComID = S.ComID 	
+

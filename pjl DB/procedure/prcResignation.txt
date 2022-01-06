@@ -1,0 +1,140 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcResignation]    Script Date: 01/06/2019 15:55:53 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[prcResignation] @EmpCode varchar(15), @ComID tinyint, @chkAccounts TINYINT
+as
+
+
+	SET NOCOUNT ON
+
+
+--	declare @EmpCode varchar(15), @ComID tinyint, @chkAccounts TINYINT
+--	SELECT @EmpCode = 'STF0912', @COMID = 1, @chkAccounts = 1
+
+
+
+Declare @CompName varchar(25), @CompAdd varchar(100)
+Declare @EmpName varchar(30), @Designation varchar(25), @Department varchar(25), @Section varchar(25)
+Declare @JoiningDate smallDateTime, @ResignationDate smallDateTime
+Declare @BRNO varchar(50), @BRDate SmallDateTime
+Declare @HRDNO varchar(50), @HRDDate smallDateTime
+Declare @Remarks varchar(250)
+Declare @EmpStatus varchar(1)
+DecLare @RegID BigInt
+
+Declare @Status tinyint
+---------------------------------------
+	Truncate Table tmpResignation
+	Truncate Table tmpResignationDetails
+---------------------------------------
+
+Select @CompName = Name, @CompAdd = Address 
+From Company_Information 
+Where ID = @ComID
+
+Select @EmpName = Name, @Designation = Designation, @Department = Department, @Section = Section, @JoiningDate = JoiningDate , @EmpStatus = Wstatus, @RegID=RegId
+From Employee_Information Where  EmployeeCode=@EmpCode And ComID=@ComID
+
+Insert tmpResignation ( ComID, ComName, ComAdd, EmpCode, EmpName, Designation, Department, SubDepartment, DateOfJoining, DateOfResignation, BRNO, BRDate, HRDNO, HRDDate, Remarks, Status, Less, LessDetails )
+Select @ComID, @CompName, @CompAdd, @EmpCode, @EmpName, @Designation, @Department, @Section, @JoiningDate, R.Date, R.BRNO, R.BRDate, R.HRDMemoNO, R.HRDMemoDate, R.Remarks, R.Status, R.Less, R.LessDetails 
+From ResignationMain R Where SLNo=@RegID and ComID = @ComID
+
+-------------------------------- Resignation Details Information -------------------------
+	Declare @SLNo int, @SerialNo Smallint
+	Declare @Wyear int, @WMonth varchar(20), @WSMonth varchar(15)
+	Declare @GSW Money, @BSW Money
+
+	Select @SLNO = SLNO from ResignationMain where SLNo=@RegID and ComID = @ComID
+	Select @SerialNO = SerialNO from tmpResignation where EmpCode=@EmpCode and ComID = @ComID
+
+	Select @Wyear = SYear From ResignationWages where SLNO = @SLNO
+	Select @WSMonth = SMonth From ResignationWages where SLNO = @SLNO
+	Select @WMonth = WagesMonthly from ResignationWages where SLNO = @SLNO
+
+	Select @GSW = RatePay From Salary_And_Wages Where RegID=@RegID and Month = @WSMonth and Year = Cast(@Wyear as varchar(4))
+	Select @BSW = Basic From Salary_And_Wages Where RegID=@RegID and Month = @WSMonth and Year = Cast(@Wyear as varchar(4))
+	
+-----------------------------------------------------------------------------------------
+------	Wages Information
+
+
+	Insert tmpResignationDetails (SerialNO, Details, Month, Gross, Basic, AttDays, Amount, ExtDay, ExtAmount, AbsentDay,AbsAmount,PIBDays,PIBAmount,FSAmount, AttBonus, Others, Deduct, IsCurrentSalary)
+	Select @SerialNo, 'Earned Salary', LEFT(R.WagesMonthly, 03) +' - ' + Cast(R.SYear as varchar(4)), R.Gross, 
+	Case
+	When @EmpStatus = 'J' Then (R.Basic / 2)
+	Else R.Basic
+	End,
+	R.AttDays, R.AttAmount, R.OTHours, R.OTAmount, R.AbsentDay,R.AbsAmount,R.PIBDays,R.PIBAmount, R.FoodSubAmount, R.AttBonus, R.Others, R.Deduct, R.IsCurrentSalary
+	From ResignationWages  R
+	INNER Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNo=@RegID 
+	
+	
+	
+--	UPDATE tmpResignationDetails SET AbsAmount=0 FROM tmpResignationDetails A INNER JOIN Salary_And_Wages B ON
+--	     A.Month=SUBSTRING(B.MONTH,1,3)+' - '+B.YEAR WHERE B.RegID=@RegID and B.ComID = @ComID
+-------------------------------------------------------------------------------------------
+------	EL Information
+	Insert tmpResignationDetails (SerialNO, Details, Month, Gross, Basic, AttDays, Amount, ExtDay, ExtAmount, IsCurrentSalary)
+	Select @SerialNo, 'Un-Availed earned leave', Cast(R.Year as varchar(4)), R.Gross, 
+	Case
+	When @EmpStatus = 'J' Then (R.Basic / 2)
+	Else R.Basic
+	End,
+	R.Days, R.Amount, 0, 0, R.IsCurrentSalary 
+	From ResignationEL  R
+	INNER Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNo=@RegID 
+
+-----------------------------------------------------------------------------------------
+------	Others Information
+	Insert tmpResignationDetails (SerialNO, Details, Month, Gross, Basic, AttDays, Amount, ExtDay, ExtAmount, IsCurrentSalary )
+	Select @SerialNo, 'Special Grant', ' - ', R.Gross, R.Basic, Cast(R.SpecialBasicNO as varchar(20)) + ' Basic', R.SpecialBasicAmount, 0, 0, R.IsCurrentSalary   
+	From ResignationOthers  R
+	Inner Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNo=@RegID 
+
+--- Change 'Termination Benefit' with 'Notice Pay' 20-Sep-2017
+	Insert tmpResignationDetails (SerialNO, Details, Month, Gross, Basic, AttDays, Amount, ExtDay, ExtAmount)
+	Select @SerialNo, 'Notice Pay', ' - ', R.Gross, R.Basic, Cast(R.NoticeBasicNO as varchar(20)) + ' Basic' , R.NoticeBasicAmount, 0, 0 From ResignationOthers  R
+	Inner Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNO=@RegID 
+
+	Insert tmpResignationDetails (SerialNO, Details, Month, Gross, Basic, AttDays, Amount, ExtDay, ExtAmount)
+	Select @SerialNo, 'Service Compensation', ' - ', R.Gross, R.Basic, Cast(R.ServiceBasicNO as varchar(20)) + ' Basic', R.ServiceBasicAmount, 0, 0 From ResignationOthers  R
+	Inner Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNO=@RegID 
+
+	Insert tmpResignationDetails (SerialNO, Details, Month, Gross, Basic, AttDays, Amount, ExtDay, ExtAmount)
+	Select @SerialNo, 'Festival Bonus', ' - ', R.Gross, R.Basic, Cast(R.FestivalBasicNO as varchar(20)) + ' Basic', R.FestivalBasicAmount, 0, 0 From ResignationOthers  R
+	Inner Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNO=@RegID 
+
+	IF @chkAccounts = 1 
+	BEGIN
+		--1 FOR STATUS WHICH CARRY THE STATUS OF INCOME OR EXPENSE
+		insert tmpResignationDetails (SerialNo, Details, Amount, StatusWorker, Status)
+		Select @SerialNO AS 'SERIALNO', DeductionName, DeductionAmount, StatusWorker, 2 AS 'STATUS' From ResignationDeduct R 
+		Inner Join ResignationMain M On R.SLNO = M.SLNO
+		Where M.ComID = @ComID and M.SLNO=@RegID 
+	END
+	ELSE
+	BEGIN
+		insert tmpResignationDetails (SerialNo, Details, Amount, StatusWorker, Status)
+		Select @SerialNO, DeductionName, DeductionAmount, StatusWorker, 2 As 'Status' From ResignationDeduct R --1 FOR STATUS WHICH CARRY THE STATUS OF INCOME OR EXPENSE
+		Inner Join ResignationMain M On R.SLNO = M.SLNO
+		Where M.ComID = @ComID and M.SLNO=@RegID AND StatusWorker = 1
+	END
+
+	insert tmpResignationDetails (SerialNo, Details, Amount, StatusWorker, Status)
+	Select @SerialNO AS 'SERIALNO', AdditionName, AdditionAmount, 1, 1 AS 'STATUS' From ResignationAdd R 
+	Inner Join ResignationMain M On R.SLNO = M.SLNO
+	Where M.ComID = @ComID and M.SLNO=@RegID 
+
+	Delete From tmpResignationDetails Where Amount = 0 And ExtAmount = 0
+
+	SET NOCOUNT ON

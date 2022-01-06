@@ -1,0 +1,115 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcAlterViewAdjustmentNewTemp]    Script Date: 01/06/2019 10:48:27 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcAlterViewAdjustmentNewTemp] @ComId tinyInt, @IncrDate smalldatetime, @Department varchar(25), @Section varchar(25), @Status tinyInt,@Year int,@SUMM tinyInt
+As
+--EXEC prcAlterViewAdjustmentNewTemp 1, '01-NOV-2010','ADMINISTRATOR', 'PD', '01-NOV-1994', '01-NOV-2010', 1,2010,2,1
+
+--	@Status For Propose Sheet
+Declare @Percent real
+set @Percent = .10 --Means 10%
+
+Set dateformat dmy
+						--and (A.MLeft = 0)
+IF  @SUMM = 2
+
+ Begin
+
+  
+	If @Department <> '' and @Section <> '' 
+	   Begin
+	   exec (' Alter vIEW ViewAdjustmentNew_Temp as 
+		   SELECT A.ComID, A.EmpCode AS EmployeeCode, A.EmpName, A.JoinDate AS JOININGDATE, A.Designation, A.WorkingYear AS Incrementyear, 
+                   A.DeptName AS Department, A.SubDeptName AS [Section], A.Wstatus, A.CurrRate, A.GrossWillBe - A.CurrRate AS Incrementrate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime)
+                   AS lastincrementdate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS lastincrement, A.GrossWillBe, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) 
+                   AS FromDate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS ToDate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS IncrDTWise, 
+                   ''S.S.C'' AS EXAMNAME, dbo.Increment_Information_nov.IncrRate, 
+                   A.CurrRate - dbo.Increment_Information_nov.IncrRate AS octcurrrate, dbo.appn.A
+                   FROM dbo.Temp_Adjustment_2010Dec A LEFT OUTER JOIN
+                   dbo.appn ON A.ComID = dbo.appn.Comid AND A.EmpCode = dbo.appn.Empcode LEFT OUTER JOIN
+                   dbo.Increment_Information_nov ON A.ComID = dbo.Increment_Information_nov.ComID AND 
+                   A.EmpCode = dbo.Increment_Information_nov.EmpCode
+   		   Where ((a.Comid = '+ @ComId +')   and (A.DeptName = ''' + @Department + ''') 
+		   and (A.SubDeptName = ''' + @Section + ''') and ( A.workingyear =' + @Year + ' ) ) 
+
+')
+
+	   end
+	else If @Department <> '' 
+	   Begin
+	   exec (' Alter vIEW ViewAdjustmentNew_Temp as 
+		   SELECT A.ComID, A.EmpCode AS EmployeeCode, A.EmpName, A.JoinDate AS JOININGDATE, A.Designation, A.WorkingYear AS Incrementyear, 
+                   A.DeptName AS Department, A.SubDeptName AS [Section], A.Wstatus, A.CurrRate, A.GrossWillBe - A.CurrRate AS Incrementrate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime)
+                   AS lastincrementdate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS lastincrement, A.GrossWillBe, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) 
+                   AS FromDate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS ToDate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS IncrDTWise, 
+                   ''S.S.C'' AS EXAMNAME, dbo.Increment_Information_nov.IncrRate, 
+                   A.CurrRate - dbo.Increment_Information_nov.IncrRate AS octcurrrate, dbo.appn.A
+		   FROM dbo.Temp_Adjustment_2010Dec A LEFT OUTER JOIN
+                   dbo.appn ON A.ComID = dbo.appn.Comid AND A.EmpCode = dbo.appn.Empcode LEFT OUTER JOIN
+                   dbo.Increment_Information_nov ON A.ComID = dbo.Increment_Information_nov.ComID AND 
+                   A.EmpCode = dbo.Increment_Information_nov.EmpCode
+   		   Where ((a.Comid = '+ @ComId +')   and (A.DeptName = ''' + @Department + ''') 
+		    and ( A.workingyear =' + @Year + ' ) ) 
+
+                  ')
+	   end
+	else
+	   Begin
+	   exec (' Alter vIEW ViewAdjustmentNew_Temp as 
+	SELECT A.ComID, A.EmpCode AS EmployeeCode, A.EmpName, A.JoinDate AS JOININGDATE, A.Designation, A.WorkingYear AS Incrementyear, 
+                   A.DeptName AS Department, A.SubDeptName AS [Section], A.Wstatus, A.CurrRate, A.GrossWillBe - A.CurrRate AS Incrementrate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime)
+                   AS lastincrementdate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS lastincrement, A.GrossWillBe, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) 
+                   AS FromDate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS ToDate, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS IncrDTWise, 
+                   ''S.S.C'' AS EXAMNAME dbo.Increment_Information_nov.IncrRate, 
+                   A.CurrRate - dbo.Increment_Information_nov.IncrRate AS octcurrrate, dbo.appn.A
+		   FROM dbo.Temp_Adjustment_2010Dec A LEFT OUTER JOIN
+                   dbo.appn ON A.ComID = dbo.appn.Comid AND A.EmpCode = dbo.appn.Empcode LEFT OUTER JOIN
+                   dbo.Increment_Information_nov ON A.ComID = dbo.Increment_Information_nov.ComID AND 
+                   A.EmpCode = dbo.Increment_Information_nov.EmpCode
+   		   Where ((a.Comid = '+ @ComId +') and ( A.workingyear =' + @Year + ' ) ) 
+
+                  ')
+	    end
+
+end
+
+
+ELSE IF @SUMM=1 
+Begin
+
+			exec (' Alter vIEW ViewAdjustmentNew_Temp as 
+			SELECT     dbo.Temp_Adjustment_2010Dec.ComID, dbo.Company_Information.Name AS comname, dbo.Company_Information.Address, 
+                      dbo.Temp_Adjustment_2010Dec.EmpCode, dbo.Temp_Adjustment_2010Dec.EmpName, dbo.Temp_Adjustment_2010Dec.JoinDate, 
+                      dbo.Temp_Adjustment_2010Dec.Designation, dbo.Temp_Adjustment_2010Dec.DeptName AS department, dbo.Temp_Adjustment_2010Dec.SubDeptName AS [section], 
+                      dbo.Temp_Adjustment_2010Dec.CurrRate, dbo.Temp_Adjustment_2010Dec.ProposedAmount, dbo.Temp_Adjustment_2010Dec.IncrementAmount, 
+                      dbo.Temp_Adjustment_2010Dec.ProposedGross, dbo.Temp_Adjustment_2010Dec.GrossWillBe, dbo.Temp_Adjustment_2010Dec.WorkingYear AS incrementyear, 
+                      dbo.Temp_Adjustment_2010Dec.LastIncrement, dbo.Temp_Adjustment_2010Dec.LastIncrDate, dbo.Temp_Adjustment_2010Dec.Wstatus, 
+                      dbo.Temp_Adjustment_2010Dec.EduQ, dbo.Temp_Adjustment_2010Dec.dsign, dbo.Temp_Adjustment_2010Dec.NewDesignation, ''1 Y'' AS servicelength, 1 AS pro, 
+                      1 AS newper, CAST(''Jan  1 1994 12:00AM'' AS smalldatetime) AS FromDate, CAST(''Nov 10 2010 12:00AM'' AS SmallDateTime) AS ToDate, 
+                      dbo.Temp_Adjustment_2010Dec.GrossWillBe - dbo.Temp_Adjustment_2010Dec.CurrRate AS incrementrate
+			FROM        dbo.Temp_Adjustment_2010Dec INNER JOIN
+                      dbo.Company_Information ON dbo.Temp_Adjustment_2010Dec.ComID = dbo.Company_Information.ID 
+
+                  ')
+
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

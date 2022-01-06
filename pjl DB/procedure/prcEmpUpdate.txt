@@ -1,0 +1,274 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcEmpUpdate]    Script Date: 01/06/2019 13:18:50 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROCEDURE [dbo].[prcEmpUpdate]
+AS
+
+-- exec [prcEmpUpdate]
+
+
+-- Insert   [ProximityPJG].[dbo].[USERINFO]
+
+truncate table [ProximityPJG].[dbo].[USERINFO]
+
+
+insert into 
+[ProximityPJG].[dbo].[USERINFO](USERINFO.Badgenumber, 
+USERINFO.SSN, 
+USERINFO.Name, 
+USERINFO.CardNo,
+[DEFAULTDEPTID]
+) 
+
+SELECT  [RegId]
+,[EmployeeCode]
+,[Name]
+,EmpAttID
+,ComID
+FROM DB_PJL_GROUP.[dbo].[Employee_Information]
+WHERE WStatus in ('j','s')  AND MLeft=0 
+and CAST(RegId AS VARCHAR) not in (select [BADGENUMBER] from [ProximityPJG].[dbo].[USERINFO] where ISNUMERIC([BADGENUMBER])=1)
+ORDER BY  
+[JoiningDate] desc, [Department]
+,[Section]
+,[EmployeeCode]
+
+
+
+
+insert into 
+[ProximityPJG].[dbo].[USERINFO](USERINFO.Badgenumber, 
+USERINFO.SSN, 
+USERINFO.Name, 
+USERINFO.CardNo,
+DEFAULTDEPTID) 
+
+SELECT  [RegId]
+,[EmployeeCode]
+,[Name]
+,EmpAttID
+,ComID
+FROM DB_PJL_GROUP.[dbo].[Employee_Information]
+WHERE ComID=14 AND MLeft=0 
+and CAST(RegId AS VARCHAR) not in (select [BADGENUMBER] from [ProximityPJG].[dbo].[USERINFO] where ISNUMERIC([BADGENUMBER])=1)
+ORDER BY  
+[JoiningDate] desc, [Department]
+,[Section]
+,[EmployeeCode]
+
+insert into 
+[ProximityPJG].[dbo].[USERINFO](USERINFO.Badgenumber, 
+USERINFO.SSN, 
+USERINFO.Name, 
+USERINFO.CardNo,
+DEFAULTDEPTID) 
+
+SELECT  [RegId]
+,[EmployeeCode]
+,[Name]
+,EmpAttID
+,ComID
+FROM DB_PJL_GROUP.[dbo].[Employee_Information]
+WHERE ComID=3 AND MLeft=0 
+and CAST(RegId AS VARCHAR) not in (select [BADGENUMBER] from [ProximityPJG].[dbo].[USERINFO] where ISNUMERIC([BADGENUMBER])=1)
+ORDER BY  
+[JoiningDate] desc, [Department]
+,[Section]
+,[EmployeeCode]
+
+
+
+-- Update  Photo
+
+update [ProximityPJG].[dbo].[USERINFO] set [PHOTO]=B.[PHOTO]
+from [ProximityPJG].[dbo].[USERINFO] as A
+ Inner Join [ProximityPJL].[dbo].[USERINFO] as B on A.[BADGENUMBER]=B.[BADGENUMBER]
+
+
+ update [ProximityPJG].[dbo].[USERINFO] set [PHOTO]=B.[PHOTO]
+from [ProximityPJG].[dbo].[USERINFO] as A
+ Inner Join ProximityJ2L.[dbo].[USERINFO] as B on A.[BADGENUMBER]=B.[BADGENUMBER]
+
+
+ update [ProximityPJG].[dbo].[USERINFO] set [PHOTO]=B.[PHOTO]
+from [ProximityPJG].[dbo].[USERINFO] as A
+ Inner Join ProximityNHTF.[dbo].[USERINFO] as B on A.[BADGENUMBER]=B.[BADGENUMBER]
+
+
+ update [ProximityPJG].[dbo].[USERINFO] set [PHOTO]=B.[PHOTO]
+from [ProximityPJG].[dbo].[USERINFO] as A
+ Inner Join ProximityNHTH.[dbo].[USERINFO] as B on A.[BADGENUMBER]=B.[BADGENUMBER]
+
+ update [ProximityPJG].[dbo].[USERINFO] set [PHOTO]=B.[PHOTO]
+from [ProximityPJG].[dbo].[USERINFO] as A
+ Inner Join ProximityPAL.[dbo].[USERINFO] as B on A.[BADGENUMBER]=B.[BADGENUMBER]
+
+
+  update [ProximityPJG].[dbo].[USERINFO] set [PHOTO]=B.[PHOTO]
+from [ProximityPJG].[dbo].[USERINFO] as A
+ Inner Join ProximityUJL.[dbo].[USERINFO] as B on A.[BADGENUMBER]=B.[BADGENUMBER]
+
+
+
+ -- Update  Finger 
+
+ truncate table [ProximityPJG].[dbo].[TEMPLATE]
+
+
+
+
+BEGIN
+	
+	SET NOCOUNT ON;	
+		
+		Declare @USERID varchar(MAX)
+Declare @BADGENUMBER varchar(50)
+
+
+DECLARE EmpInfo SCROLL CURSOR FOR
+(	
+	SELECT 
+	[USERID]
+	,[BADGENUMBER]
+	from [ProximityPJG].[dbo].[USERINFO]
+
+	)
+	
+	OPEN EmpInfo
+	FETCH FIRST FROM EmpInfo
+	INTO @USERID,
+	@BADGENUMBER
+	
+       While  @@FETCH_STATUS=0
+        	BEGIN
+
+    INSERT INTO[ProximityPJG].[dbo].[TEMPLATE]
+           (
+		   [USERID]
+      ,[FINGERID]
+      ,[TEMPLATE]
+	 , [USETYPE]    
+      ,[Flag]
+      ,[DivisionFP]	  
+	  )
+     VALUES
+           (
+		@USERID,
+		6,
+		'0x4E4F4E45',
+		0,
+		1,
+		10 )
+
+
+		 INSERT INTO[ProximityPJG].[dbo].[TEMPLATE]
+           (
+		   [USERID]
+      ,[FINGERID]
+      ,[TEMPLATE]
+	 , [USETYPE]    
+      ,[Flag]
+      ,[DivisionFP]	  
+	  )
+     VALUES
+           (
+		@USERID,
+		7,
+		'0x4E4F4E45',
+		0,
+		1,
+		10 )
+
+
+
+	FETCH next FROM EmpInfo
+	INTO @USERID,
+	@BADGENUMBER
+	END
+
+ CLOSE EmpInfo
+DEALLOCATE EmpInfo
+
+
+SET NOCOUNT OFF;	
+
+update [ProximityPJG].[dbo].View_Finger set  TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join [ProximityPJL].[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.FINGERID=B.FINGERID
+
+
+ 
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityJ2L.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.FINGERID=B.FINGERID
+
+
+ 
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityNHTF.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.FINGERID=B.FINGERID
+
+
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityNHTH.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.FINGERID=B.FINGERID
+
+
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityPAL.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.FINGERID=B.FINGERID
+
+
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityUJL.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.FINGERID=B.FINGERID
+
+
+
+ -- update where finger is not 6 or 7
+
+ 
+update [ProximityPJG].[dbo].View_Finger set  TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4 
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join [ProximityPJL].[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.[TEMPLATE4] is null
+
+
+ 
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4 
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityJ2L.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.[TEMPLATE4] is null
+
+
+ 
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4 
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityNHTF.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.[TEMPLATE4] is null
+
+
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4 
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityNHTH.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.[TEMPLATE4] is null
+
+
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4 
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityPAL.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.[TEMPLATE4] is null
+
+
+update [ProximityPJG].[dbo].View_Finger set   TEMPLATE=B.TEMPLATE , TEMPLATE4=B.TEMPLATE4 
+from [ProximityPJG].[dbo].View_Finger as A
+ Inner Join ProximityUJL.[dbo].View_Finger as B on A.[BADGENUMBER]=B.[BADGENUMBER] and A.[TEMPLATE4] is null
+
+
+
+
+
+
+
+
+END

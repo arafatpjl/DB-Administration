@@ -1,0 +1,90 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[PrcPIBProcess]    Script Date: 01/06/2019 15:51:33 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ --exec PrcPIBProcess 1,'December',2018
+ --exec PrcPIBProcess 5,'December',2018
+ --exec PrcPIBProcess 7,'December',2018
+ --exec PrcPIBProcess 13,'December',2018
+
+
+ALTER PROCEDURE [dbo].[PrcPIBProcess] @compid int,@Month varchar(50),@Year int
+AS
+BEGIN
+	
+-- delete Data
+delete from tblPIBMonthlySummary  where ComId=@compid and Month=@Month and Year=@Year
+
+-- insert Data
+insert into tblPIBMonthlySummary
+
+select DATENAME(month,DailyDate) as Month,
+ DatePart(year,DailyDate) as Year,
+ ComId,
+ RegId,
+ EmployeeCode,
+ Name,
+ Department,
+ Section,
+ Designation,
+ ViewPIBALL.Wstatus,
+ Sum(PIB_Days) as TotalPIB,
+ --Rate,
+ --Sum(PIB_Days)*Rate as TotalAmount 
+  0 as Rate,
+ 0 as TotalAmount 
+
+from ViewPIBALL 
+--Inner join tblPIBRate on
+--Designation=Category and ViewPIBALL.Wstatus=tblPIBRate.Wstatus
+where ComId=@compid  and DATENAME(month,DailyDate)=@Month and DatePart(year,DailyDate)=@Year
+group by ComId,RegId,DATENAME(month,DailyDate), DatePart(year,DailyDate),EmployeeCode,Name,Department,Section,Designation,ViewPIBALL.Wstatus  -- ,Rate
+
+order by EmployeeCode
+
+
+-- Loak Data 
+update tblDailyPIB set IsLock='True' where DATENAME(month,DailyDate)=@Month and DatePart(year,DailyDate)=@Year
+
+
+
+-- Check Not in PIB
+
+select compid
+,sum(PIB_Days)  as TotalPIB
+ FROM tblDailyPIB
+  where DATENAME(month,DailyDate)=@Month and DatePart(year,DailyDate)=@Year
+ group by compid
+order by compid
+
+
+
+select 
+comid
+,sum(TotalPIB) as TotalPIB
+from tblPIBMonthlySummary 
+where Month=@Month and Year=@Year
+group by comid
+order by comid
+
+
+
+
+-- Check Company Change
+
+select A.compid
+,B.Regid
+ FROM tblDailyPIB as A
+ inner join Employee_Information as B
+ on A.Regid=B.Regid and ComID<>CompID
+  where DATENAME(month,DailyDate)=@Month and DatePart(year,DailyDate)=@Year
+  order by A.compid
+,B.Regid
+
+
+    
+END

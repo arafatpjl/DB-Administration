@@ -1,0 +1,284 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcUpdateMProcessFinal]    Script Date: 01/06/2019 16:18:45 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER Proc [dbo].[prcUpdateMProcessFinal] @Year as int
+as
+	SET NOCOUNT ON
+
+--	Exec prcUpdateMProcessFinal 2008
+
+Declare @EmpCode varchar(10), @Comid tinyint, @Count int
+
+Declare Cursor_EmpCode Scroll Cursor
+For Select Distinct EmpCode, ComID From Temp_m_process_Final
+Open Cursor_EmpCode
+
+set @Count = @@Cursor_Rows
+
+while @Count>0 
+begin
+	Fetch next from Cursor_EmpCode into @EmpCode, @ComID
+
+--		=================================	STATUS 		==============================
+	Declare @Status char(1)
+	Select @Status = AttBonus from temp_m_process_Final where EmpCode = @EmpCode and ComID = @ComID 
+
+	Declare @DailyDate smalldatetime
+	select @DailyDate = Min(DailyDate) from Temp_M_Process_Sub where EmpCode = @EmpCode and ComID = @ComID 	
+
+--		=================================	EMPLOYEE INFORMATION 	==============================
+	Declare @Dept varchar(25), @SubDept varchar(25), @JoinDate smallDateTime
+	Select @Dept = Department, @SubDept = Section, @JoinDate = JoiningDate from Employee_Information where EmployeeCode = @EmpCode and ComID = @ComID 
+
+--		=================================	RUNNING TOTAL 	==============================
+	Declare @RTAbsent Real, @RTML Real,@RTCL Real, @RTSL Real, @RTEL Real, @RTNW_New smallint, @RTDinner smallint, @RTTrans smallint, @RTExtraDay Real, @RTExtraTiffinAllow Real
+
+	select @RTAbsent = Count(*) from Temp_M_Process_Sub Where EmpStatus = 'A' and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTCL = Count(*) from Temp_M_Process_Sub Where EmpStatus = 'CL' and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTML = Count(*) from Temp_M_Process_Sub Where EmpStatus = 'ML' and EmpCode = @EmpCode and ComID = @ComID 
+	
+	Select @RTSL = Count(*) from Temp_M_Process_Sub where EmpStatus='SL' and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTEL = Count(*) from Temp_M_Process_Sub where EmpStatus = 'EL' and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTNW_New = Count(*) from Temp_M_Process_Sub where EmpStatus = 'NW' and EmpCode = @EmpCode and ComID = @ComID 
+	Select @RTDinner   = isnull( Sum( DinnerAllow ), 0 )  from Temp_M_Process_Sub Where EmpCode = @EmpCode and ComID = @ComID 
+	Select @RTTrans   = isnull( Sum( TransAllow ), 0 )  from Temp_M_Process_Sub Where EmpCode = @EmpCode and ComID = @ComID 
+
+	select @RTExtraDay = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where (@Status <> 'W' OR @Status <> 'O') and (DayStatus='W' or DayStatus = 'G' or DayStatus = 'O' or (DayStatus = 'S' and IfFullOT = 'Y')) 
+		and Cast(TimeIn as datetime) <> cast('00:00' as datetime) and ( datepart(hh,S.ValidOT)+(datepart(n, S.ValidOT)/60.0) + datepart(hh,S.RestOT)+(datepart(n, S.RestOT)/60.0))>=5.0 and S.EmpCode = @EmpCode and S.ComID = @ComID 
+
+	select @RTExtraTiffinAllow = Count(*) from Temp_M_Process_Sub 
+		where (Datepart(hh,ValidOT) + Datepart(hh,RestOT) + (datepart(n,ValidOT)+datepart(n,RestOT))/60 ) >= 12 and Cast(TimeOut as datetime)<Cast('08:00 PM' as datetime) 
+		and (DayStatus='W' Or DayStatus='G' or DayStatus = 'O') and DayHide = 'Y' and EmpCode = @EmpCode and ComID = @ComID
+
+--	=================================================================================================
+	Declare @RTGHoliday Real,  @RTHalfCL Real, @RTHalfEL Real, @RTLate tinyint
+
+	select @RTGHoliday = Count(*) from Temp_M_Process_Sub where EmpStatus='G' and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTHalfCL = Count(*) from Temp_M_Process_Sub where EmpStatus='CL' and ((datepart(hh,DailyHrs)>=2 and datepart(n,DailyHrs)>=30) or datepart(hh, DailyHrs)>=2.5)  and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTHalfEL = Count(*) from Temp_M_Process_Sub where EmpStatus='EL' and ((datepart(hh,DailyHrs)>=2 and datepart(n,DailyHrs)>=30) or datepart(hh, DailyHrs)>=2.5)  and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTLate = 0
+--	select @RTLate = Count(*) from Temp_M_Process_Sub where EmpStatus='L' AND @Status <> 'A' and EmpCode = @EmpCode and ComID = @ComID
+
+--	=================================================================================================
+	Declare @RTNP Real, @RTOTFDay Real, @RTPresentFoodDay tinyint, @RTTAll Real
+
+	select @RTNP = Count(*) from Temp_M_Process_Sub where EmpStatus IN('NA','NP') and EmpCode = @EmpCode and ComID = @ComID 
+	select @RTOTFDay = Count(*) from Temp_M_Process_Sub 
+		where (@Status = 'W' OR @Status = 'O') and DayHide = 'Y' and Cast(TimeIn as datetime) <> cast('00:00' as datetime) and (datepart(hh,ValidOT) + datepart(hh,RestOT) + Cast((datepart(n, ValidOT) + datepart(n, RestOT))/60 as int)) > 6.0 
+		and EmpCode = @EmpCode and ComID = @ComID 
+	Select @RTPresentFoodDay = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where (@Status = 'W' OR @Status = 'O')  and (S.DayHide = 'N') and ( S.EmpCode = @EmpCode ) And ( S.ComID = @ComID ) 
+			And ( ((Cast(TimeIn as datetime) <> cast('00:00' as datetime))
+			And ( datepart(hh, S.DailyHrs) + datepart(hh,S.ValidOT) + datepart(hh, S.RestOT) + ( datepart(n, S.DailyHrs) +  datepart(n, S.ValidOT) + datepart(n, S.RestOT) ) / 60.0)>6.0))
+
+--	if @Status = 'W' OR @Status = 'O' OR @Status  = 'S' 
+	if @Status = 'W' OR @Status = 'O' OR @Status  = 'F' 
+	Begin
+		select @RTTAll = Count(*) from Temp_M_Process_Sub where TiffAllow = 'Y' AND DayHide = 'N' and EmpCode = @EmpCode and ComID = @ComID 
+			And DailyDate NOT BETWEEN '01-Jul-2014' AND '31-Jul-2014'
+	End 
+	Else
+	Begin
+		Select @RTTAll = 0
+	End 
+
+--	=================================================================================================
+	Declare @RTPresentLeave as smallint, @RTHolidayCount as smallInt
+	select @RTPresentLeave = 0, @RTHolidayCount = 0
+
+	select @RTPresentLeave = Count(*) from Temp_M_Process_Sub 
+		where (((EmpStatus= 'P') or (EmpStatus= 'L') or (EmpStatus= 'S') or (EmpStatus= 'EL') or (EmpStatus= 'CL') or (EmpStatus= 'SL')or (EmpStatus= 'NW') or (EmpStatus= 'H'))
+		and ((EmpStatus <> 'W') and (EmpStatus <> 'G') and (EmpCode = @EmpCode) and (ComID = @ComID )))
+--OLD 	select @RTHolidayCount = isnull(Count(*), 0) from Temp_M_Process_Sub where (((EmpStatus= 'W') or (EmpStatus= 'G')) and ((EmpCode = @EmpCode) and (ComID = @ComID )))
+	select @RTHolidayCount = isnull(Count(*), 0) from Temp_M_Process_Sub where ((((DayStatus = 'S' )AND (IfFullOT = 'Y')) OR (EmpStatus= 'W') or (EmpStatus= 'G') or (EmpStatus= 'O')) and ((EmpCode = @EmpCode) and (ComID = @ComID )))
+--	select @RTHolidayCount = isnull(Count(*), 0) from Temp_M_Process_Sub where (((EmpStatus= 'W') or (EmpStatus= 'G') or (EmpStatus= 'S')) and ((EmpCode = @EmpCode) and (ComID = @ComID )))
+
+--	=================================	FORMULA 	==============================
+--	===============	  Work Day Calculation   ==========================
+	Declare @Month VARCHAR(15), @WorkedDay Float, @X Float
+
+	Select @WorkedDay = 0, @X = 0 
+	Select @Month = (SELECT DISTINCT UPPER(DATENAME(M,DAILYDATE)) FROM Temp_M_Process_Sub WHERE EmpCode = @EmpCode and ComID = @ComID )
+	IF @Month = 'JANUARY' OR @Month = 'MARCH' OR @Month = 'MAY' OR @Month = 'JULY' OR @Month = 'AUGUST' OR @Month = 'OCTOBER' OR @Month = 'DECEMBER'
+	BEGIN
+		SET @X = 31
+	END
+	ELSE IF @Month = 'APRIL' OR @Month = 'JUNE' OR @Month = 'SEPTEMBER' OR @Month = 'NOVEMBER' 
+	BEGIN
+		SET @X = 30
+	END
+	ELSE IF @Month = 'FEBRUARY' 
+	BEGIN
+		if @Year % 4 = 0
+		begin
+			SET @X = 29
+		end
+		else
+		begin
+			SET @X = 28
+		end
+	END
+	Select @WorkedDay = @X
+	Select  @X = 0
+
+--	-----------------------------------------------------------------------------
+--	Newly Added Code As Per New Coding In Job Card 
+	Declare @RTAbsent_New tinyInt, @RTPresentFullDay_New tinyInt, @RTPresentHalfDay_New tinyint
+	Declare @RTNP_Present_Full tinyint, @RTNP_Present_Half tinyint
+	Declare @RTSub_Absent_Full tinyint, @RTSub_Absent_Half tinyint, @Subday_Absent real
+
+	Select @RTAbsent_New = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where ( S.EmpCode = @EmpCode ) And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)<4.0)
+
+	Select @RTPresentFullDay_New = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where ( S.EmpCode = @EmpCode ) And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=6.0)
+
+	Select @RTPresentHalfDay_New = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where ( S.EmpCode = @EmpCode ) And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=4.0 and datepart(hh, S.DailyHrs)< 6.0)
+
+	Select @RTNP_Present_Full = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where (EmpStatus IN('NA','NP')) and ( S.EmpCode = @EmpCode ) And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=6.0)
+
+	Select @RTNP_Present_Half = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where ( S.EmpCode = @EmpCode ) And (EmpStatus IN('NA','NP')) and  ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=4.0 and datepart(hh, S.DailyHrs)< 6.0)
+
+	Select @RTSub_Absent_Full = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where ( S.EmpCode = @EmpCode ) And (EmpStatus= 'P') And (S.DayStatus = 'S') And (S.IfFullOT = 'N') And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)<4.0)
+--		where ( S.EmpCode = @EmpCode ) And (EmpStatus= 'A') And (S.DayStatus = 'S') And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=6.0)
+
+	Select @RTSub_Absent_Half = Count(*) from Temp_M_Process_Sub S inner Join Temp_M_Process_Final M on M.EmpCode = S.EmpCode and M.ComID = S.ComID 
+		where ( S.EmpCode = @EmpCode ) And (EmpStatus= 'P') And (S.DayStatus = 'S') And (S.IfFullOT = 'N') And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=4.0 and datepart(hh, S.DailyHrs)< 6.0)
+--		where ( S.EmpCode = @EmpCode ) And (EmpStatus= 'H') And (S.DayStatus = 'S') And ( S.ComID = @ComID ) And (datepart(hh, S.DailyHrs)>=4.0 and datepart(hh, S.DailyHrs)< 6.0)
+
+	Select @Subday_Absent =  @RTSub_Absent_Full + (@RTSub_Absent_Half/2.0)
+
+--	Select 'This' = @EmpCode, 'AN' = @RTAbsent_New, 'PFD' = @RTPresentFullDay_New, @RTPresentHalfDay_New, @RTNP_Present_Full, @RTNP_Present_Half, @RTSub_Absent_Full, @RTSub_Absent_Half, @Subday_Absent
+
+--	-----------------------------------------------------------------------------
+--	Absent, TotalCL, TotalEL, LeaveTotal
+	Declare @Absent Float, @TotalML Float,@TotalCL Float, @TotalEL Float, @TotalSL Float,  @LeaveTotal Float
+
+	Select @TotalCL = (@RTCL - (@RTHalfCL/2)), @TotalEL = @RTEL - (@RTHalfEL/2), @TotalSL = @RTSL,@TotalML = @RTML
+	Select @LeaveTotal = @TotalCL + @TotalEL + @TotalSL
+
+	if @RTPresentLeave = 0 
+	Begin
+		Select @Absent = @RTAbsent_New - @RTNW_New
+		Select @Absent = @Absent-@TotalML
+	End
+	Else
+	Begin
+		if @Status = 'W' OR @Status = 'O' OR @Status  = 'F' 
+		Begin
+			Select @Absent = (@RTAbsent_New + (@RTPresentHalfDay_New/2.0) + @Subday_Absent) - (@RTHolidayCount + @RTNW_New + (@LeaveTotal ) + (@RTNP - (@RTNP_Present_Full + @RTNP_Present_Half)))
+		    Select @Absent = @Absent-@TotalML
+		End
+		Else
+		Begin
+			Select @Absent = (@RTAbsent_New + (@RTPresentHalfDay_New/2.0) + @Subday_Absent) - (@RTHolidayCount + @RTNW_New + (@LeaveTotal) + (@RTNP - (@RTNP_Present_Full + @RTNP_Present_Half)))
+		    Select @Absent =@Absent-@TotalML
+		End
+	End
+
+--	-----------------------------------------------------------------------------
+--	===============	 Atendence  ==========================
+	Declare @AttendDay real, @TotalNP real
+	if @Status = 'W' OR @Status = 'O' OR @Status  = 'F' 
+		Begin
+		
+	Select @AttendDay = 0, @TotalNp = @RTNP+(@TotalSL)/2.0
+		End
+		Else
+		Begin
+		Select @AttendDay = 0, @TotalNp = @RTNP
+		End
+	
+		
+	--------	Attend Day Calculation 		-------------
+	If @RTPresentLeave = 0
+	Begin
+		Select @AttendDay = 0
+	End
+	Else
+	Begin
+		if @Status = 'W' OR @Status = 'O' OR @Status  = 'F' 
+		Begin
+			Select @AttendDay = @RTHolidayCount + @RTPresentFullDay_New + (@RTPresentHalfDay_New/2.0) + @RTNW_New + (@LeaveTotal - (@TotalSL)/2.0) - (@RTNP_Present_Full + @RTNP_Present_Half + @Subday_Absent)
+		End
+		Else
+		Begin
+			Select @AttendDay = @RTHolidayCount + @RTPresentFullDay_New + (@RTPresentHalfDay_New/2.0) + @RTNW_New + (@LeaveTotal) - (@RTNP_Present_Full + @RTNP_Present_Half + @Subday_Absent)
+		End		
+	End 
+--	-----------------------------------------------------------------------------
+
+--	===============	Attendence Bonus Calculation 	=====================
+	Declare @AttenBonus Char(1)
+	Set @AttenBonus = '-'
+	if @Status = 'W' OR @Status = 'O'
+	begin
+		if (@WorkedDay - (@AttendDay + cast(@RTLate/3 as int))) <= 1 
+		begin
+			set @AttenBonus = 'A'
+		end
+		if (@WorkedDay - (@AttendDay + cast(@RTLate/3 as int))) <= 1.5 and (@RTAbsent + @LeaveTotal + @TotalNP )>= 1 
+		begin
+			set @AttenBonus = 'B'
+		end
+		if ( @RTAbsent + @LeaveTotal + @TotalNP )>1.5 
+		begin
+			set @AttenBonus = '-'
+		end
+	end
+	-----------------------------------------------------------------------------
+
+--	Food Sub Day, OTTotalHour, OTTotalMinute, TotalOT
+	Declare @FoodSubDay Float
+	Declare @OTTotalHour Float, @OTTotalMinute Float, @TotalOT Float
+	Declare @ExtraOTTotalHour Float, @ExtraOTTotalMinute Float, @ExtraTotalOT Float
+
+	Declare @RestOTTotalHour Float, @RestOTTotalMinute Float, @RestTotalOT Float
+
+	IF @Status = 'W' OR @Status = 'O' 
+	begin
+		
+		Select 	@OTTotalHour   = isnull( Sum( datepart(HH, ValidOT)), 0), 
+			@OTTotalMinute = isnull( Sum( datepart(n, ValidOT)), 0),
+			@ExtraOTTotalHour   = isnull( Sum( datepart(HH, ExtraOT)), 0), 
+			@ExtraOTTotalMinute = isnull( Sum( datepart(n, ExtraOT)), 0), 
+			@RestOTTotalHour   = isnull( Sum( datepart(HH, RestOT)), 0), 
+			@RestOTTotalMinute = isnull( Sum( datepart(n, RestOT)), 0)
+		From Temp_M_Process_Sub Where ((EmpCode = @EmpCode) and (ComID = @ComID ))
+
+		Select  @TotalOT = (@OTTotalHour + (@OTTotalMinute/60)), 
+			@ExtraTotalOT = (@ExtraOTTotalHour + (@ExtraOTTotalMinute/60)), 
+			@RestTotalOT = (@RestOTTotalHour + (@RestOTTotalMinute/60)),
+			@FoodSubDay = @RTPresentFoodDay
+	End 
+	Else
+	Begin
+		SELECT @FoodSubDay = 0,  @TotalOT = @RTExtraDay	, @ExtraTotalOT = 0, @RestOTTotalHour =0, @RestOTTotalMinute = 0, @RestTotalOT = 0
+	End
+
+	Update Temp_m_process_Final
+	Set DeptName = @Dept, SubDept = @SubDept,  WorkDay = @WorkedDay, AttDay = @AttendDay, LeaveDay = @LeaveTotal, 
+		THoliDay = @RTGHoliday, AbsDay = @Absent, FoodDay = @FoodSubDay, ExtFDay = @RTTAll, AttBonus = @AttenBonus, 
+		OTHrs = @TotalOT+ @ExtraTotalOT + @RestTotalOT, RestOT = 0, OTFDay = @RTOTFDay, OTExtF = @RTExtraTiffinAllow, 
+--		OTHrs = @TotalOT, RestOT = @ExtraTotalOT + @RestTotalOT, OTFDay = @RTOTFDay, OTExtF = @RTExtraTiffinAllow, 
+		EmpEL = @TotalEL, EmpCL = @TotalCL, EmpSL = @TotalSL, EmpML =@TotalML, EmpNp = @TotalNP, TransAllow = @RTTrans, DinnerAllow = @RTDinner
+	Where EmpCode = @EmpCode and ComID = @ComID
+Set @Count = @Count - 1
+end
+Close Cursor_EmpCode
+Deallocate Cursor_EmpCode
+
+	SET NOCOUNT OFF
+--	Select top 1* from  temp_M_process_Sub
+--	Select top 1* from  temp_M_process_final
+--	Select * from  temp_M_process_final order by empcode
+

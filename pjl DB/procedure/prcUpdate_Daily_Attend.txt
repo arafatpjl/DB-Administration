@@ -1,0 +1,70 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcUpdate_Daily_Attend]    Script Date: 01/06/2019 16:17:43 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER proc [dbo].[prcUpdate_Daily_Attend] @ComId tinyInt, @Date smallDateTime
+as 
+
+--	Delete Existing Record For specific company & date
+Delete From Emp_Daily_Attendance Where ((Comid = @ComId) And (DailyDate = @Date))
+
+
+Insert Into Emp_Daily_Attendance (Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+	TiffAllow, ShiftN, IfFullOT, EmpStatus, DayStatus, BusAvail, TransAllow, DinnerAllow, NextDayOut, AttnStatus,UserName,UserPass,ComputerName,EntryDate,EntryTime)
+
+Select 	Distinct Comid, DailyDate, EmpCode, TimeIn, LateHrs, TimeOut, DailyHrs, ValidOT, RestOT, ExtraOT, 
+	Case When IsAllowTiffin = 1 Then 'Y' Else 'N' End,		
+	Case When IsNightShift = 1 Then 'Y' Else 'N' End,
+	Case When IfFullOT = 1 Then 'Y' Else 'N' End,
+	Case When (EmpStatus <> '-') And (IsLate = 1) And (IsHoliday = 0) And (DailyHrs>='06:00')  Then 'L'
+	     Else EmpStatus
+	End AS EmpStatus,
+	DayStatus, BusAvail, TransAllow, DinnerAllow, 
+	Case When IsNextDayOut = 1 Then 'Y' Else 'N' End,
+	Case When IsManual = 1 Then 'M' Else 'A' End,
+UserName,UserPass,ComputerName,EntryDate,EntryTime
+From Daily_Attend_Final
+Where ((Comid = @Comid) And (DailyDate = @Date))
+
+
+--	Delete Absent Employee's Record
+DELETE FROM Emp_Daily_Attendance
+Where ((Comid = @Comid) And (DailyDate = @Date) And (TimeIn = '00:00') And (TimeOut = '00:00'))
+
+
+
+-- MINUS FRACTION OT (ADDED ON 10-DEC-2014)
+
+UPDATE A SET DailyHrs=DATEADD(N,-DATEPART(N,DailyHrs),DailyHrs),
+             RESTOT=DATEADD(N,-DATEPART(N,RESTOT),RESTOT)
+FROM Emp_Daily_Attendance A INNER JOIN Employee_Information C ON A.EmpCode=C.EmployeeCode
+WHERE A.ComID = @Comid And DailyDate = @Date AND MLeft=0 AND DayStatus IN ('R','S')
+      AND WStatus='W' AND DailyHrs>='08:00:00'
+      AND (DATEPART(N,DailyHrs) BETWEEN 1 AND 15)
+      
+
+
+UPDATE A SET DailyHrs=DATEADD(N,-DATEPART(N,DailyHrs)+30,DailyHrs),
+             RESTOT=DATEADD(N,-DATEPART(N,RESTOT)+30,RESTOT)
+FROM Emp_Daily_Attendance A INNER JOIN Employee_Information C ON A.EmpCode=C.EmployeeCode
+WHERE A.ComID = @Comid And DailyDate = @Date AND MLeft=0 AND DayStatus IN ('R','S')
+      AND WStatus='W' AND DailyHrs>='08:00:00'
+      AND (DATEPART(N,DailyHrs) BETWEEN 31 AND 45)
+
+
+UPDATE A SET ValidOT=DATEADD(N,-DATEPART(N,ValidOT),ValidOT)
+FROM Emp_Daily_Attendance A INNER JOIN Employee_Information C ON A.EmpCode=C.EmployeeCode
+WHERE A.ComID = @Comid And DailyDate = @Date AND MLeft=0 AND DayStatus NOT IN ('R','S')
+      AND WStatus='W' --AND ValidOT<'08:00:00'
+      AND (DATEPART(N,ValidOT) BETWEEN 1 AND 15)
+      
+      
+      
+UPDATE A SET ValidOT=DATEADD(N,-DATEPART(N,ValidOT)+30,ValidOT)
+FROM Emp_Daily_Attendance A INNER JOIN Employee_Information C ON A.EmpCode=C.EmployeeCode
+WHERE A.ComID = @Comid And DailyDate = @Date AND MLeft=0 AND DayStatus NOT IN ('R','S')
+      AND WStatus='W' --AND ValidOT<'08:00:00'
+      AND (DATEPART(N,ValidOT) BETWEEN 31 AND 45)

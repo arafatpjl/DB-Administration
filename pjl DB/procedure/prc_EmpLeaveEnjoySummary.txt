@@ -1,0 +1,111 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prc_EmpLeaveEnjoySummary]    Script Date: 12/24/2018 10:44:32 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER PROC [dbo].[prc_EmpLeaveEnjoySummary] @RegId varchar(30),@Year int
+AS 
+
+-- EXEC  prc_EmpLeaveEnjoySummary '114571',2018
+
+
+
+CREATE TABLE #tbl_EmpLeaveEnjoyDetail(	
+	[LeaveType] [nvarchar](50) NULL,
+	[Total] decimal(10, 2)  NULL,
+	[Enjoy] decimal(10, 2)  NULL,
+	[Balance] decimal(10, 2)  NULL	
+) 
+
+insert into #tbl_EmpLeaveEnjoyDetail(LeaveType,Total,Enjoy,Balance)
+values('EL',0,0,0),
+('CL',0,0,0),
+('SL',0,0,0),
+('ML',0,0,0);
+
+--SELECT * FROM EMP_EL_Calculation WHERE  REGID=@RegId AND ELYear =@Year-1
+
+-------------EL--------------
+update #tbl_EmpLeaveEnjoyDetail set Total=isnull((SELECT cast(ELDays as decimal(10, 2))  FROM EMP_EL_Calculation WHERE  REGID=@RegId AND ELYear =@Year-1),0)
+where LeaveType='EL';
+
+
+--return
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where   ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='EL'),0) 
+  -isnull((SELECT count(DayHalf)/2
+  FROM [Emp_Leave_Entry]  
+  where   ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='EL' and DayHalf =1),0)
+  where LeaveType='EL';
+
+     --return;
+
+
+--------------CL---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=isnull((select EmpCL FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where  REGID=@RegId)),0)
+where LeaveType='CL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where   ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='CL'),0)
+  -isnull((SELECT count(DayHalf)/2
+  FROM [Emp_Leave_Entry]  
+  where   ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='CL' and DayHalf =1),0)
+  where LeaveType='CL';
+
+ 
+--------------SL---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=isnull((select EmpSL/1.4 FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT EmpLVID 
+FROM Employee_Information 
+where   REGID=@RegId)),0) 
+where LeaveType='SL';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where   ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='SL'),0)
+  -isnull((SELECT count(DayHalf)/2
+  FROM [Emp_Leave_Entry]  
+  where   ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='SL' and DayHalf =1),0)
+  
+  where LeaveType='SL';
+
+
+  
+
+--------------ML---------
+
+update #tbl_EmpLeaveEnjoyDetail set 
+Total=isnull((select EmpML FROM Emp_General_Leave 
+WHERE EmpLVID = (SELECT isnull(EmpLVID,0) 
+FROM Employee_Information 
+where   REGID=@RegId)),0)
+where LeaveType='ML';
+
+update #tbl_EmpLeaveEnjoyDetail set Enjoy= isnull((SELECT SUM([LDays])
+  FROM [Emp_Leave_Entry]  
+  where ( YEAR(FrDate)=@Year OR YEAR(ToDate)=@Year )  AND REGID=@RegId and LType='ML'),0)where LeaveType='ML';
+
+  update #tbl_EmpLeaveEnjoyDetail set Balance=Total-Enjoy;
+  
+select * 
+from #tbl_EmpLeaveEnjoyDetail  
+
+
+
+
+  
+ 
+ 

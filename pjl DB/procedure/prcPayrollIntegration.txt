@@ -1,0 +1,430 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  StoredProcedure [dbo].[prcPayrollIntegration]    Script Date: 01/06/2019 15:49:57 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER Proc [dbo].[prcPayrollIntegration] @Comid tinyint, @Wstatus varchar(50), @Month varchar(50), @Year int
+
+
+--update  [DB_PJL_GROUP].[dbo].[Sub_Dept_Name]
+--set [ERP_DEPARTMENT]=HCM_DEPARTMENT
+--      ,[ERP_COST_CENTER]=HCM_COST_CENTER
+--      ,[ERP_ShortCode]=ShortCode
+--      ,[ERP_DeptID]=HCM_DeptID
+--      ,[ERP_CostCenterID]=HCM_CostCenterID
+
+--	  from [DB_PJL_GROUP].[dbo].[Sub_Dept_Name] 
+--	  inner join [DB_PJL_GROUP].[dbo].[ERP_COST_CENTER]
+--	  on [EMS_Department]=[DeptName] and
+
+--	  [EMS_Section]=[SubDeptName]
+
+
+
+
+-- exec [prcPayrollIntegration] '5','W','July',2018
+
+
+AS   
+
+
+SET STATISTICS TIME ON;
+
+
+ ----- #tmpPayrollIntegration
+ select distinct 		
+		DeptName   
+		,SubDeptName     
+		,ERP_DEPARTMENT
+		,ERP_COST_CENTER
+		,ERP_ShortCode
+		,ERP_DeptID
+		,ERP_CostCenterID
+	,tblPayrollIntegration.*   
+	  into #tmpPayrollIntegration   
+ from tblPayrollIntegration 
+ CROSS JOIN Sub_Dept_Name
+ 
+  
+ ----- #Salary_And_Wages_Combined
+ select * 
+ into #Salary_And_Wages_Combined
+ from Salary_And_Wages_Combined  where ComID=@Comid and  Wstatus =@Wstatus and Month=@Month and Year=@Year
+
+ 
+----- Wages
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(WEarned+AbsAmount+FoodPay+DinnerAllow+AttenBonus+TransPay+TransAllow+SpAllow+OthersE)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Wages'  
+
+
+
+
+ ----- Overtime
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(OTPay+FoodAllow)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Overtime'
+  
+ ----- Pre-paid Fraction Pay
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(FracPay)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Pre-paid Fraction Pay Cr'
+
+ 
+ ----- Production Incentive Bonus
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(PIB)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Production Incentive Bonus'
+
+ 
+ ----- Member''s Subscription to PF -Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(Cont)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Member''s Subscription to PF -Payable'
+ 
+
+
+  ----- Current Account with EPF
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(Loan+Interest)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Current Account with EPF'
+ 
+  
+  ----- Pre-paid Fraction Pay
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(FracPayD)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Pre-paid Fraction Pay'
+ 
+
+ 
+  ----- Wages Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(NetPayTK)  FROM #Salary_And_Wages_Combined 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Wages' and  SubCategory='Wages Payable'
+ 
+
+
+  -- exec [prcPayrollIntegration] '5','W','July',2018
+
+
+ 
+ ----- #Salary_And_WagesOT_Extra
+ select * 
+ into #Salary_And_WagesOT_Extra
+ from Salary_And_WagesOT_Extra  where ComID=@Comid and  Wstatus =@Wstatus and Month=@Month and Year=@Year
+
+
+  ----- Overtime Dr
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(NetPayTK-FracPay+FracPayD)  FROM #Salary_And_WagesOT_Extra 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Overtime' and  SubCategory='Overtime Dr'
+
+
+
+
+  ----- Pre-paid Fraction Pay Dr
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(FracPay)  FROM #Salary_And_WagesOT_Extra 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Overtime' and  SubCategory='Pre-paid Fraction Pay Dr'
+
+
+
+  -----Pre-paid Fraction Pay Cr
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(FracPayD)  FROM #Salary_And_WagesOT_Extra 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Overtime' and  SubCategory='Pre-paid Fraction Pay Cr'
+
+
+   ----- Overtime Dr
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(0)  FROM #Salary_And_WagesOT_Extra 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Overtime' and  SubCategory='Overtime Cr'
+
+
+ -----Wages Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(NetPayTK)  FROM #Salary_And_WagesOT_Extra 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Overtime' and  SubCategory='Wages Payable'
+
+
+
+ 
+ 
+ ----- #Bonus_Entry
+ select * 
+ into #Bonus_Entry
+ from Bonus_Entry  where ComID=@Comid and  Wstatus =@Wstatus and Month=@Month and Year=@Year
+
+
+  ----- Festival Bonus
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(Basic+FracPayD)  FROM #Bonus_Entry 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Bonus' and  SubCategory='Festival Bonus'
+
+  
+  -----Fraction Pay A/C
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(FracPayD)  FROM #Bonus_Entry 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Bonus' and  SubCategory='Fraction Pay A/C'
+
+
+ -----Festival Bonus Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(Basic)  FROM #Bonus_Entry 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Bonus' and  SubCategory='Festival Bonus Payable'
+
+
+
+
+ 
+ ----- #Advance_Salary_And_Wages
+ select * 
+ into #Advance_Salary_And_Wages
+ from Advance_Salary_And_Wages  where ComID=@Comid and  Wstatus =@Wstatus and Month=@Month and Year=@Year
+
+
+  ----- Wages Advance
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(NetPayTK)  FROM #Advance_Salary_And_Wages 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Advance Wages' and  SubCategory='Wages Advance'
+
+  
+  ----- Wages Advance
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT DeptName, SubDeptName,Total= sum(NetPayTK)  FROM #Advance_Salary_And_Wages 
+ group by DeptName, SubDeptName ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Advance Wages' and  SubCategory='Wages Payable A/C'
+ 
+
+ 
+ ----- #ViewMaternity_Leave
+ select * 
+ into #ViewMaternity_Leave
+ from ViewMaternity_Leave  where ComID=@Comid and  Wstatus =@Wstatus and SMonth=@Month and SYear=@Year
+
+
+  ----- Maternity Leave benefit-Pre-natal
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT Department as  DeptName,Section as  SubDeptName,Total= sum(Amount)  FROM #ViewMaternity_Leave
+ group by Department, Section ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Maternity Leave (Pre-Natal)' and  SubCategory='Maternity Leave benefit-Pre-natal'
+
+  
+ ----- Member''s Subscription to PF -Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT Department as  DeptName,Section as  SubDeptName,Total= sum(PFDeduct)  FROM #ViewMaternity_Leave
+ group by Department, Section ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Maternity Leave (Pre-Natal)' and  SubCategory='Member''s Subscription to PF -Payable'
+ 
+  
+ ----- Maternity Leave Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT Department as  DeptName,Section as  SubDeptName,Total= sum(Amount)  FROM #ViewMaternity_Leave
+ group by Department, Section ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Maternity Leave (Pre-Natal)' and  SubCategory='Maternity Leave Payable'
+
+
+
+ 
+ ----- Maternity Leave benefit-Pre-natal
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT Department as  DeptName,Section as  SubDeptName,Total= sum(Amount)  FROM #ViewMaternity_Leave
+ group by Department, Section ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Maternity Leave (Pre-Natal)' and  SubCategory='Maternity Leave benefit-Pre-natal'
+
+
+ 
+ ----- Member''s Subscription to PF -Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT Department as  DeptName,Section as  SubDeptName,Total= sum(PFDeduct)  FROM #ViewMaternity_Leave
+ group by Department, Section ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Maternity Leave (Pre-Natal)' and  SubCategory='Member''s Subscription to PF -Payable'
+
+
+ 
+ -----Maternity Leave Payable
+ update #tmpPayrollIntegration 
+ set amount=Salary.Total
+ from #tmpPayrollIntegration
+ inner join ( SELECT Department as  DeptName,Section as  SubDeptName,Total= sum(Amount)  FROM #ViewMaternity_Leave
+ group by Department, Section ) as Salary
+ on  Salary.DeptName=#tmpPayrollIntegration.DeptName and  Salary.SubDeptName=#tmpPayrollIntegration.SubDeptName
+ where  Category='Maternity Leave (Pre-Natal)' and  SubCategory='Maternity Leave Payable'
+
+
+
+
+
+
+-- exec [prcPayrollIntegration] '5','W','July',2018
+
+
+select  
+		@Comid as ComId
+		,Natural_Acc_Code
+		,Sub_Acc_Code
+		,Category
+		,SubCategory	 
+		,ERP_COST_CENTER
+		,ERP_ShortCode     
+		,ERP_CostCenterID
+		,sum(Amount) as TotalAmount
+		,Type
+		,@Month as Month 
+		,@Year as Year
+		,Getdate() as CreatedDate
+	into #tblPayrollIntegration
+from #tmpPayrollIntegration  where Amount>0
+		group by Natural_Acc_Code
+		,Sub_Acc_Code
+		,Category
+		,SubCategory	 
+		,ERP_COST_CENTER
+		,ERP_ShortCode     
+		,ERP_CostCenterID	
+		,Type 
+
+
+	--------------------
+	--------------------
+
+
+		SELECT
+		 ComId
+		,Month 
+		,Year
+		,Natural_Acc_Code
+		,Sub_Acc_Code
+		,Category
+		,SubCategory	 
+		,ERP_COST_CENTER
+		,ERP_ShortCode     
+		,ERP_CostCenterID		
+		,isnull(Dr,0) as Dr
+		,isnull(Cr,0) as Cr
+		,'False' as Status
+		,CreatedDate
+FROM 
+( SELECT B.ERP_CompCode ComId
+		,Natural_Acc_Code
+		,Sub_Acc_Code
+		,Category
+		,SubCategory	 
+		,ERP_COST_CENTER
+		,ERP_ShortCode     
+		,ERP_CostCenterID
+		,TotalAmount		
+		,Type
+		,Month 
+		,Year
+		,CreatedDate
+FROM #tblPayrollIntegration 
+     A INNER JOIN Company_Information_New B ON A.ComID=B.ID
+     ) ps
+PIVOT
+(
+SUM (TotalAmount)
+FOR Type IN
+( [Dr], [Cr])
+) AS pvt
+
+order by Category
+		,SubCategory
+
+
+ 
+ --[DB_PJL_GROUP].[dbo].[Left_Absent_Payment]
+ --[DB_PJL_GROUP].[dbo].[Left_Absent_Payment]
+
+
+
+	
