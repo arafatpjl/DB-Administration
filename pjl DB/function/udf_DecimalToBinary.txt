@@ -1,0 +1,43 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  UserDefinedFunction [dbo].[udf_DecimalToBinary]    Script Date: 12/23/2018 13:25:40 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ ALTER FUNCTION [dbo].[udf_DecimalToBinary] 
+    (
+        @Decimal VARCHAR(32)
+    )
+
+    RETURNS TABLE AS RETURN
+
+    WITH Tally (n) AS
+    (
+        --32 Rows
+        SELECT TOP 30 ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) -1
+        FROM (VALUES (0),(0),(0),(0)) a(n)
+        CROSS JOIN (VALUES(0),(0),(0),(0),(0),(0),(0),(0)) b(n)
+
+     ) 
+
+     , Anchor (n, divisor , Result) as 
+     (
+     SELECT t.N , 
+            CONVERT(BIGINT, @Decimal) / POWER(2,T.N) ,  
+            CONVERT(BIGINT, @Decimal) / POWER(2,T.N) % 2 
+     FROM Tally t 
+     WHERE CONVERT(bigint,@Decimal) >= POWER(2,t.n)
+     )
+
+
+     SELECT TwoBaseBinary =  '' +REPLICATE('0',8-LEN((SELECT Result 
+          FROM Anchor
+          ORDER BY N DESC 
+          FOR XML PATH ('') , TYPE).value('.','varchar(200)'))) + (SELECT Result 
+          FROM Anchor
+          ORDER BY N DESC 
+          FOR XML PATH ('') , TYPE).value('.','varchar(200)')
+        
+
+

@@ -1,0 +1,72 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  UserDefinedFunction [dbo].[fn_EmployeeInfoByRegID]    Script Date: 12/23/2018 13:16:50 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER FUNCTION [dbo].[fn_EmployeeInfoByRegID] 
+( 
+    @RegID NVARCHAR(50)
+) 
+RETURNS @output TABLE(
+RegId int,
+ComID int,
+EmployeeCode NVARCHAR(50),
+Name NVARCHAR(250)
+) 
+begin 
+       
+        INSERT INTO @output (RegId,ComID,EmployeeCode,Name)  
+        
+SELECT  [RegId]
+      ,[ComID]
+      ,[EmployeeCode]
+        ,Name 
+  FROM [DB_PJL_GROUP].[dbo].[Employee_Information] where  RegID IN(SELECT * FROM fnSplitString (@RegID,',')) and MLeft=0 and WStatus in ('J','S')
+  
+--  union all
+  
+--  /****** Script for SelectTopNRows command from SSMS  ******/
+--SELECT  [RegId]
+--      ,[ComID]
+--      ,[EmployeeCode]
+--       ,Name 
+--  FROM [DB_PJL_GROUP].[dbo].[Employee_Information] where  RegID IN(SELECT * FROM fnSplitString (@RegID,',')) and MLeft=0 and WStatus in ('J','S')
+  
+--  union all
+--   /****** Script for SelectTopNRows command from SSMS  ******/
+--SELECT  [RegId]
+--      ,[ComID]
+--      ,[EmployeeCode]
+--     ,Name 
+--  FROM [DB_PJL_GROUP].[dbo].[Employee_Information] where  RegID IN(SELECT * FROM fnSplitString (@RegID,',')) and MLeft=0 and WStatus in ('J','S')
+  
+--  union all
+--   /****** Script for SelectTopNRows command from SSMS  ******/
+--SELECT  [RegId]
+--      ,[ComID]
+--      ,[EmployeeCode]
+--          ,Name 
+--  FROM [DB_PJL_GROUP].[dbo].[Employee_Information] where  RegID IN(SELECT * FROM fnSplitString (@RegID,',')) and MLeft=0 and WStatus in ('J','S')
+  
+--  union all
+--   /****** Script for SelectTopNRows command from SSMS  ******/
+--SELECT  [RegId]
+--      ,[ComID]
+--      ,[EmployeeCode]
+--          ,Name 
+--  FROM [DB_PJL_GROUP].[dbo].[Employee_Information] where  RegID IN(SELECT * FROM fnSplitString (@RegID,',')) and MLeft=0 and WStatus in ('J','S')
+  
+--  union all
+--   /****** Script for SelectTopNRows command from SSMS  ******/
+--SELECT  [RegId]
+--      ,[ComID]
+--      ,[EmployeeCode]
+--       ,Name 
+--  FROM [DB_PJL_GROUP].[dbo].[Employee_Information] where  RegID IN(SELECT * FROM fnSplitString (@RegID,',')) and MLeft=0 and WStatus in ('J','S')
+  
+ 
+          
+    RETURN 
+     END 

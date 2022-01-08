@@ -1,0 +1,72 @@
+USE [DB_PJL_GROUP]
+GO
+/****** Object:  UserDefinedFunction [dbo].[fnGetDateLengthUP]    Script Date: 12/23/2018 13:24:03 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+ALTER FUNCTION [dbo].[fnGetDateLengthUP] 
+( 
+    @from DATETIME, 
+    @to DATETIME 
+) 
+RETURNS @output table(splitdata NVARCHAR(MAX) 
+) 
+BEGIN 
+ DECLARE  @init INT,    @carry INT, @const INT, @result INT, @outputData NVARCHAR(100)
+
+
+
+SET @carry = 0
+SET @outputData = ''
+
+IF(@from > @to)
+BEGIN
+    --PRINT 'ERROR : Fromdate must be less than or equal to ToDate'
+    RETURN
+END
+
+--calculate minute
+SET @init = datepart (mi, @to) - datepart (mi, @from)
+SET @const = 60
+SELECT @const = CASE WHEN @init = 0 AND @carry = 0 THEN 0 else @const END
+SELECT @result = CASE WHEN @init <= 0 THEN @const + @init + @carry ELSE @init + @carry END
+SELECT @carry = CASE WHEN sign(@init) = -1 OR (@init = 0 AND @carry = -1) THEN -1 ELSE 0 END
+SELECT @outputData    = replicate('0',2-len(@result)) + convert(VARCHAR, @result)  + ' minute(s)' + ' ' + @outputData
+
+--calculate hours
+SET @init = datepart (hh, @to) - datepart (hh, @from)
+SET @const = 24
+SELECT @const = CASE WHEN @init = 0 AND @carry = 0 THEN 0 else @const END
+SELECT @result = CASE WHEN @init <= 0 THEN @const + @init + @carry ELSE @init + @carry END
+SELECT @carry = CASE WHEN sign(@init) = -1 OR (@init = 0 AND @carry = -1) THEN -1 ELSE 0 END
+SELECT @outputData    =  replicate('0',2-len(@result)) + convert(VARCHAR, @result)  + ' hours(s)' + ' ' + @outputData
+
+--calculate days
+
+SET @init = datepart (dd, @to) - datepart (dd, @from)
+DECLARE @LastdayOfMonth INT = CASE WHEN @init<0 THEN datepart(dd,DATEADD(dd,-(DAY(@to)),@to)) 
+    ELSE datepart(dd,DATEADD(dd,-(DAY(DATEADD(mm,1,@to))),DATEADD(mm,1,@to))) END
+SELECT @const = CASE WHEN @init = 0 AND @carry = 0 THEN 0 ELSE @LastdayOfMonth END
+SELECT @result = CASE WHEN @init <= 0 THEN @const + @init + @carry ELSE @init + @carry END
+SELECT @carry = CASE WHEN sign(@init) = -1 OR (@init = 0 AND @carry = -1) THEN -1 ELSE 0 END
+SELECT @outputData    =  replicate('0',2-len(@result)) + convert(VARCHAR, @result)  + ' day(s)' + ' ' + @outputData
+
+--calculate Months
+SET @init = datepart (MM, @to) - datepart (MM, @from)
+SET @const = 12
+SELECT @const = CASE WHEN @init = 0 AND @carry = 0 THEN 0 else @const END
+SELECT @result = CASE WHEN @init <= 0 THEN @const + @init + @carry ELSE @init + @carry END
+SELECT @carry = CASE WHEN sign(@init) = -1 OR (@init = 0 AND @carry = -1) THEN -1 ELSE 0 END
+SELECT @outputData    =  replicate('0',2-len(@result)) + convert(VARCHAR, @result)  + ' month(s)' + ' ' + @outputData
+
+--calculate years
+SET @init = datepart (yy, @to) - datepart (yy, @from)
+SET @const = 0
+SELECT @result = CASE WHEN @carry = -1 then @const + @init + @carry ELSE @init + @carry END
+SELECT @outputData    =  replicate('0',2-len(@result)) + convert(VARCHAR, @result)  + ' year(s)' + ' ' + @outputData
+
+--PRINT @outputData 
+    RETURN 
+     END 
