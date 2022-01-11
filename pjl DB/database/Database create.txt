@@ -1,0 +1,16 @@
+USE master
+GO
+CREATE DATABASE Payroll
+ON
+( NAME = Payroll_dat,
+   FILENAME = 'c:\program files\microsoft sql server\mssql\data\payrolldat.mdf',
+   SIZE = 20MB,
+   MAXSIZE = 70MB,
+   FILEGROWTH = 5MB )
+LOG ON
+( NAME = 'Payroll_log',
+   FILENAME = 'c:\program files\microsoft sql server\mssql\data\payroll.ldf',
+   SIZE = 10MB,
+   MAXSIZE = 40MB,
+   FILEGROWTH = 5MB );
+GO
