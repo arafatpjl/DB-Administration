@@ -1,0 +1,77 @@
+SELECT --gjb.name AS je_batch_name,
+       --gjl.je_line_num,
+       --gjh.je_source,
+       --gjh.je_category,
+       --gjh.name AS je_name,
+      -- gjh.period_name,
+       fnd_flex_ext.get_segs ('SQLGL',
+                              'GL#',
+                              xgl.chart_of_accounts_id,
+                              xal.code_combination_id)
+          account,
+       xal.currency_code entered_currency,
+       xal.entered_dr,
+       xal.entered_cr,
+       xal.accounted_dr,
+       xal.accounted_cr,
+       xla_oa_functions_pkg.get_ccid_description (xgl.chart_of_accounts_id,
+                                                  xal.code_combination_id)
+          account_description,
+      -- xgl.ledger_id,
+      -- ca.cashflow_id,
+       sba.bank_account_num source_bank_account_num,
+       sba.bank_account_name source_bank_account_name,
+       sba.currency_code source_currency_code,
+       sbb.bank_name source_bank_name,
+       sbb.bank_branch_name source_bank_branch_name,
+       db.bank_account_num destination_bank_account_num,
+       db.bank_account_name destination_bank_account_name,
+       db.currency_code destination_currency_code,
+       dbb.bank_name destination_bank_name,
+       dbb.bank_branch_name destination_bank_branch_name
+      -- TRUNC (gjl.effective_date) AS gl_date,
+      -- TO_CHAR (cpt.bank_trxn_number) AS doc_number,
+      -- cpt.repetitive_payment_code party_name,
+      -- TO_CHAR (cpt.trxn_reference_number) AS transaction_number,
+     --  gjh.currency_code AS gl_currency_code,
+      -- cpt.payment_currency_code,
+     --  gcc.concatenated_segments,
+      -- cpt.transaction_description AS naration,
+      -- xah.event_type_code
+  FROM gl_je_lines gjl,
+       gl_je_headers gjh,
+      -- gl_code_combinations_kfv gcc,
+       gl_je_batches gjb,
+       gl_import_references gir,
+       xla_ae_lines xal,
+       xla_ae_headers xah,
+       xla_gl_ledgers_v xgl,
+       xla_transaction_entities_upg xte,
+       ce_cashflows ca,
+       ce_payment_transactions cpt,
+       ce_bank_accounts sba,
+       ce_bank_accounts db,
+       ce_bank_branches_v sbb,       
+       ce_bank_branches_v dbb
+ WHERE     gjl.je_header_id = gjh.je_header_id
+       --AND gjl.code_combination_id = gcc.code_combination_id
+       AND gjh.je_batch_id = gjb.je_batch_id
+       AND sbb.branch_party_id = sba.bank_branch_id
+       AND dbb.branch_party_id = db.bank_branch_id
+       AND sba.bank_account_id = cpt.source_bank_account_id
+       AND db.bank_account_id = cpt.destination_bank_account_id
+       AND gjl.status = 'P'
+       AND gjh.actual_flag = 'A'
+       AND xte.ledger_id = xgl.ledger_id
+       AND gjl.je_header_id = gir.je_header_id
+       AND gjh.je_batch_id = gir.je_batch_id
+       AND gjl.je_line_num = gir.je_line_num
+      -- AND xal.application_id = 260
+       AND xgl.ledger_id = xah.ledger_id
+       --AND xgl.ledger_id = 2022
+       AND gir.gl_sl_link_id = xal.gl_sl_link_id
+       AND xal.ae_header_id = xah.ae_header_id
+       AND xah.entity_id = xte.entity_id
+       AND xte.source_id_int_1 = ca.cashflow_id
+       AND ca.trxn_reference_number = cpt.trxn_reference_number
+       AND ca.trxn_reference_number = :p_bank_transfer_number

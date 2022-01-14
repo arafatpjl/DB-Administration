@@ -1,0 +1,165 @@
+create or replace
+function xxpj_get_cc_desc(P_CCID in NUMBER) return varchar2 as
+
+v_segment1 varchar2(100) := null;
+v_segment2 varchar2(100) := null;
+v_segment3 varchar2(100) := null;
+v_segment4 varchar2(100) := null;
+v_segment5 varchar2(100) := null;
+v_segment6 varchar2(100) := null;
+v_segment7 varchar2(100) := null;
+v_segment8 varchar2(100) := null;
+
+v_segment1_desc varchar2(200) := null;
+v_segment2_desc varchar2(200) := null;
+v_segment3_desc varchar2(200) := null;
+v_segment4_desc varchar2(200) := null;
+v_segment5_desc varchar2(200) := null;
+v_segment6_desc varchar2(200) := null;
+v_segment7_desc varchar2(200) := null;
+v_segment8_desc varchar2(200) := null;
+v_CC_DESC varchar2(1000) := null;
+begin
+
+begin
+ select segment1,segment2,segment3,segment4,segment5,segment6,segment7,segment8 into v_segment1,v_segment2,v_segment3,v_segment4,v_segment5,v_segment6,v_segment7,v_segment8 from gl_code_combinations_kfv where code_combination_id = P_CCID;
+exception
+when others then
+v_segment1 := null;
+v_segment2  := null;
+v_segment3  := null;
+v_segment4 := null;
+v_segment5 := null;
+v_segment6  := null;
+v_segment7  := null;
+v_segment8 := null;
+end;
+
+begin
+select  b.DESCRIPTION 
+into v_segment1_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX Comp'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment1;
+
+
+exception
+when others then
+v_segment1_desc := null;
+end;
+
+begin
+select  b.DESCRIPTION 
+into v_segment2_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX CC'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment2;
+
+exception
+when others then
+v_segment2_desc := null;
+end;
+
+BEGIN
+select  b.DESCRIPTION 
+into v_segment3_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX NA'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment3;
+
+exception
+when others then
+v_segment3_desc := null;
+end;
+
+BEGIN
+
+--select  b.DESCRIPTION 
+--into v_segment4_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX SA'
+--and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+--and flex_value = v_segment4;
+
+  SELECT 
+         DESCRIPTION into v_segment4_desc
+    FROM FND_FLEX_VALUES_VL 
+   WHERE     (   ('' IS NULL)
+              OR (structured_hierarchy_level IN (SELECT hierarchy_id
+                                                   FROM fnd_flex_hierarchies_vl h
+                                                  WHERE     h.flex_value_set_id =
+                                                               (select flex_value_set_id from fnd_flex_value_sets where flex_value_set_name = 'XX SA')
+                                                        AND h.hierarchy_name LIKE
+                                                               '')))
+         AND (FLEX_VALUE_SET_ID = (select flex_value_set_id from fnd_flex_value_sets where flex_value_set_name = 'XX SA'))
+         AND (PARENT_FLEX_VALUE_LOW = v_segment3)--Segment3
+         AND flex_value = v_segment4 ;--Segment4
+
+
+
+exception
+when others then
+v_segment4_desc := null;
+end;
+
+
+
+BEGIN
+select  b.DESCRIPTION 
+into v_segment5_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX PRJ'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment5;
+
+exception
+when others then
+v_segment5_desc := null;
+end;
+
+BEGIN
+select  b.DESCRIPTION 
+into v_segment6_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX IC'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment6;
+
+exception
+when others then
+v_segment6_desc := null;
+end;
+
+BEGIN
+select  b.DESCRIPTION 
+into v_segment7_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX F1'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment7;
+
+exception
+when others then
+v_segment7_desc := null;
+end;
+
+BEGIN
+select  b.DESCRIPTION 
+into v_segment8_desc from fnd_flex_value_sets a,FND_FLEX_VALUES_VL  b where a.flex_value_set_name = 'XX F2'
+and a.FLEX_VALUE_SET_ID = b.FLEX_VALUE_SET_ID
+and flex_value = v_segment8;
+
+exception
+when others then
+v_segment8_desc := null;
+end;
+
+--begin
+--exception
+--when others then
+--v_segment1_desc := null;
+--v_segment2_desc  := null;
+--v_segment3_desc  := null;
+--v_segment4_desc := null;
+--v_segment5_desc := null;
+--v_segment6_desc  := null;
+--v_segment7_desc  := null;
+--v_segment8_desc := null;
+--end;
+
+v_CC_DESC := v_segment1_desc||'.'||v_segment2_desc||'.'||v_segment3_desc||'.'||v_segment4_desc||'.'||v_segment5_desc||'.'||v_segment6_desc||'.'||v_segment7_desc||'.'||v_segment8_desc;
+
+--v_CC_DESC := v_segment4_desc;
+
+return(v_cc_desc);
+
+end;

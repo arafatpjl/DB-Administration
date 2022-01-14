@@ -1,0 +1,46 @@
+
+
+Concurrent Programs -
+
+Program : 		Journals - Voucher
+Short Name :	GLRXVCJ
+Application : 	General Ledger
+Description :	Journals - Voucher
+Exacutable 
+Name :			GLWACCTR
+Method :		Oracle Reports 
+
+
+
+Concurrent Program Executable -
+
+Executable : 	GLWACCTR
+Short Name :	GLWACCTR
+Application : 	General Ledger
+Description :	Account Analysis - Contra Accounts
+Exacuttion Method : Oracle Reports
+File Name :			GLWACCTR
+
+
+
+Data Defination -
+
+Name			Publish Journals - Voucher		
+Code			GLRXVCJ		
+Application		General Ledger		
+Start Date		01-Jan-2005
+
+
+
+Templates   -
+
+Name				Publish Journals - Voucher		
+Code				GLRXVCJ
+Application			General Ledger		
+Data Definition		Publish Journals - Voucher
+Type				RTF		
+Start Date			01-Jan-2005
+Default File		GLRXVCJ.rtf		
+End Date		
+				
+		

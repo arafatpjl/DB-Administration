@@ -1,0 +1,76 @@
+/* Formatted on 11/28/2018 2:41:39 PM (QP5 v5.256.13226.35538) */
+SELECT fb.asset_id,
+       fab.asset_number,
+       fb.book_type_code,
+       fab.asset_type,
+       fab.description,
+       fab.serial_number,
+       fab.model_number,
+       fab.current_units,
+       fc.segment1 || ',' || fc.segment2 category,
+       fb.date_placed_in_service,
+       fid.vendor_name,
+       fb.DEPRN_METHOD_CODE,
+       fb.COST,
+       fb.original_cost,
+       fb.ADJUSTED_RECOVERABLE_COST,
+       fdh.units_assigned units,
+       (SELECT SUM (total_deprn_amount)
+          FROM fa_financial_inquiry_deprn_v, gl_periods gp
+         WHERE     asset_id = fb.asset_id
+          AND TO_CHAR (gp.end_date, 'YYYY')= TO_CHAR (:p_end_date, 'YYYY')
+                AND gp.end_date <= :p_end_date
+               AND period_entered = gp.period_name)
+          ytd_depc,
+          (SELECT SUM (total_deprn_amount)
+          FROM fa_financial_inquiry_deprn_v, gl_periods gp
+         WHERE     asset_id = fb.asset_id
+               AND gp.end_date <= :p_end_date
+               AND period_entered = gp.period_name)
+          Acc_depc,
+         cost
+       - ( (SELECT SUM (total_deprn_amount)
+              FROM fa_financial_inquiry_deprn_v, gl_periods gp
+             WHERE     asset_id = fb.asset_id
+                   AND gp.end_date <= :p_end_date
+                   AND period_entered = gp.period_name))
+          net_book_value,
+       (fb.basic_rate * 100) || '%' basic_rate,
+       (fb.adjusted_rate * 100) || '%' adjusted_rate,
+       gcc.concatenated_segments gl_number,
+          fl.segment1
+       || '.'
+       || fl.segment2
+       || '.'
+       || fl.segment3
+       || '.'
+       || fl.segment4
+          LOCATION,
+       fdh.ASSIGNED_TO ASSIGNED_person,
+          fk.segment1
+       || '.'
+       || fk.segment2
+       || '.'
+       || fk.segment3
+       || '.'
+       || fk.segment4
+          asset_key
+  FROM fa_books_v fb,
+       fa_additions_v fab,
+       fa_categories_b fc,
+       fa_distribution_history fdh,
+       fa_locations fl,
+       gl_code_combinations_kfv gcc,
+       FA_INVOICE_DETAILS_V fid,
+       fa_asset_keywords fk
+ WHERE     fab.asset_id = fb.asset_id
+       AND fb.asset_id = fdh.asset_id
+       AND fid.asset_id = fab.asset_id
+      AND fdh.location_id = fl.location_id
+      and  fab.current_units=fdh.units_assigned
+       AND fab.asset_category_id = fc.category_id
+      AND fk.code_combination_id = fab.asset_key_ccid
+       AND gcc.code_combination_id = fdh.code_combination_id
+       AND fb.BOOK_TYPE_CODE = 'PJL BOOK'
+       AND fb.date_placed_in_service = '27-SEP-2018'
+       AND fb.asset_id = 100001
