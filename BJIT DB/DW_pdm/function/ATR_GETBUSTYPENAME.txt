@@ -1,0 +1,13 @@
+create or replace FUNCTION ATR_GETBUSTYPENAME (in_username VARCHAR2, in_typeid NUMBER) RETURN VARCHAR2 AS
+    sAttrValue VARCHAR2(255);
+
+BEGIN
+
+
+     EXECUTE IMMEDIATE 'SELECT MXNAME FROM '||in_username||'.MXBUSTYPE WHERE mxoid=:1'  INTO sAttrValue using in_typeid;
+
+     RETURN sAttrValue;
+END;
+ 
+ 
+ 

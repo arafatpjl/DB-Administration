@@ -1,0 +1,44 @@
+create or replace FUNCTION atr_value_from_desc_table (in_username IN VARCHAR2, in_lxoid IN NUMBER, in_vault_lxoid IN NUMBER, in_lxtype IN NUMBER) RETURN VARCHAR2 IS
+
+v_attr_value	VARCHAR2(4000);
+sql_string	varchar2(200);
+err_msg	        varchar2(1000);
+sTableName      VARCHAR2(60);
+slattice        VARCHAR2(20);
+UserName	VARCHAR2(20);
+v_attr_value_length NUMBER;
+
+BEGIN
+
+    UserName := UPPER(in_username);
+    sLattice :=  Atr_Dec_To_Hex(in_Vault_lxoid);
+    sTableName := UserName||'.LXDESC_'||sLattice;
+    v_attr_value_length := atr_long_length(sTableName,in_lxoid,in_lxtype);
+
+    IF v_attr_value_length > 0 AND v_attr_value_length < 4001 THEN
+      BEGIN
+
+        sql_string := 'SELECT LXDESC FROM '||sTableName||' ';
+        sql_string := sql_string||' WHERE LXOID = :2 AND LXKIND = :3 ';
+
+        err_msg := 'ok';
+        BEGIN
+          EXECUTE IMMEDIATE sql_string into v_attr_value using in_lxoid, in_lxtype;
+            EXCEPTION
+	     WHEN OTHERS THEN
+                err_msg := SUBSTR(SQLERRM, 1, 100);
+        END;
+        IF err_msg = 'ok' THEN
+            RETURN v_attr_value;
+          ELSE
+            RETURN NULL;
+        END IF;
+      END;
+     ELSE
+      RETURN NULL;
+    END IF;
+
+END atr_value_from_desc_table;
+ 
+ 
+ 

@@ -1,0 +1,13 @@
+create or replace FUNCTION ATR_GETRELTYPEOID (in_username VARCHAR2, sAttrName VARCHAR2) RETURN NUMBER AS
+    sAttrValue VARCHAR2(255);
+
+BEGIN
+
+
+     EXECUTE IMMEDIATE 'SELECT mxoid FROM '||in_username||'.MXRELTYPE WHERE MXNAME=:1'  INTO sAttrValue using sAttrName;
+
+     RETURN sAttrValue;
+END;
+ 
+ 
+ 

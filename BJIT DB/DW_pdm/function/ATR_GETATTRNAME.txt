@@ -1,0 +1,24 @@
+create or replace FUNCTION ATR_GETATTRNAME (in_username VARCHAR2, in_mxoid NUMBER) RETURN VARCHAR2 AS
+    sAttrValue VARCHAR2(255);
+    err_msg    VARCHAR2(1000);
+
+BEGIN
+
+     err_msg := 'ok';
+     BEGIN
+        EXECUTE IMMEDIATE 'SELECT MXNAME FROM '||in_username||'.MXATTRTYPE WHERE MXOID=:1'  INTO sAttrValue using in_mxoid;
+           EXCEPTION
+              WHEN OTHERS THEN
+                 err_msg := SUBSTR(SQLERRM, 1, 100);
+     END;
+
+     IF err_msg = 'ok' THEN
+        RETURN sAttrValue;
+       ELSE
+        RETURN NULL;
+     END IF;
+
+END;
+ 
+ 
+ 

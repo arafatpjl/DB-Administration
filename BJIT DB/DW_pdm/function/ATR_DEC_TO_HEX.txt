@@ -1,0 +1,33 @@
+create or replace FUNCTION ATR_DEC_TO_HEX (decin IN NUMBER) RETURN VARCHAR2 IS
+  v_decin NUMBER;
+  v_next_digit NUMBER;
+  v_result VARCHAR(2000);
+BEGIN
+  v_decin := decin;
+
+  IF v_decin <0 THEN
+     v_decin := 4294967296 + v_decin;
+  END IF;
+
+  WHILE v_decin > 0 LOOP
+    v_next_digit := MOD(v_decin,16);
+    IF v_next_digit > 9 THEN
+      IF v_next_digit = 10 THEN v_result := 'A' || v_result;
+      ELSIF v_next_digit = 11 THEN v_result := 'B' || v_result;
+      ELSIF v_next_digit = 12 THEN v_result := 'C' || v_result;
+      ELSIF v_next_digit = 13 THEN v_result := 'D' || v_result;
+      ELSIF v_next_digit = 14 THEN v_result := 'E' || v_result;
+      ELSIF v_next_digit = 15 THEN v_result := 'F' || v_result;
+      ELSE RAISE_APPLICATION_ERROR(-20600,'Untrapped exception');
+      END IF;
+    ELSE
+      v_result := TO_CHAR(v_next_digit) || v_result;
+    END IF;
+    v_decin := FLOOR(v_decin / 16);
+  END LOOP;
+
+  RETURN LPAD(v_result,8,'0');
+END Atr_Dec_To_Hex;
+ 
+ 
+ 

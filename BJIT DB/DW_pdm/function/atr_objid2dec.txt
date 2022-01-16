@@ -1,0 +1,52 @@
+create or replace FUNCTION                 atr_objid2dec (in_objid IN VARCHAR2, in_type IN VARCHAR2) RETURN NUMBER IS
+  i                 NUMBER;
+  DIGITS            NUMBER;
+  result            NUMBER := 0;
+  current_digit     CHAR(1);
+  current_digit_dec NUMBER;
+  s_objid	    VARCHAR2(40);
+  s_part1	    VARCHAR2(10);
+  s_part2	    VARCHAR2(10);
+  s_part3	    VARCHAR2(10);
+  s_part4	    VARCHAR2(10);
+  n_part1   NUMBER;
+  n_part2   NUMBER;
+  n_temp NUMBER;
+BEGIN
+    s_objid := in_objid;
+    i := instr(s_objid,'.');
+    s_part1 := substr(s_objid ,1,i - 1);
+
+    s_objid := substr(s_objid ,i+1);
+    i := instr(s_objid,'.');
+    s_part2 := substr(s_objid ,1,i - 1);
+
+    s_objid := substr(s_objid ,i+1);
+    i := instr(s_objid,'.');
+    s_part3 := substr(s_objid,1,i - 1);
+
+    s_part4 := substr(s_objid,i+1);
+
+    IF in_type = 'VAULT_ID' THEN
+         n_part1 := to_number(s_part1);
+         n_part2 := to_number(s_part2);
+    END IF;
+
+    IF in_type = 'O_ID' THEN
+         n_part1 := to_number(s_part3);
+         n_part2 := to_number(s_part4);
+    END IF;
+
+
+    n_part2 := n_part2 / 65536;
+    result := n_part1 + n_part2;
+    result := result * 65536;
+    IF result > 2147483648  THEN
+        result := result - 4294967296;
+    END IF;
+
+    RETURN result;
+END atr_objid2dec;
+ 
+ 
+ 

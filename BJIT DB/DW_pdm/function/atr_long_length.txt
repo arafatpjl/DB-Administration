@@ -1,0 +1,33 @@
+create or replace FUNCTION atr_long_length(in_table IN VARCHAR2, in_lxoid IN NUMBER, in_lxtype IN NUMBER ) RETURN NUMBER IS
+
+v_attr_value	long;
+sql_string	varchar2(200);
+err_msg	varchar2(1000);
+
+BEGIN
+    sql_string := 'SELECT LXDESC FROM '||in_table||' ';
+    sql_string := sql_string||' WHERE LXOID = :2 AND LXKIND = :3 ';
+
+    err_msg := 'ok';
+    BEGIN
+     EXECUTE IMMEDIATE sql_string into v_attr_value using in_lxoid, in_lxtype;
+      EXCEPTION
+	WHEN OTHERS THEN
+           err_msg := SUBSTR(SQLERRM, 1, 100);
+    END;
+    IF err_msg = 'ok' THEN
+        RETURN length(v_attr_value);
+      ELSE
+        /*
+        sql_string := 'INSERT INTO ATR_OBJ_ATTR_ERR1 (LXOID,LXTYPE,SQL_ERROR_STR,TABLE_NAME,LOG_TIME, WRITE_TIME) ';
+        sql_string := sql_string||' VALUES ';
+        sql_string := sql_string||' (:1,:2,:3,:4,SYSDATE,CURRENT_TIMESTAMP) ';
+        EXECUTE IMMEDIATE sql_string using in_lxoid, in_lxtype, err_msg, in_table;
+        */
+        RETURN 0;
+    END IF;
+
+END atr_long_length;
+ 
+ 
+ 

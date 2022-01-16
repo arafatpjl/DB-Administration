@@ -1,0 +1,11 @@
+create or replace FUNCTION ATR_DOES_TABLE_EXIST (v_owner IN VARCHAR2,v_table_name IN VARCHAR2) RETURN NUMBER IS
+  v_result VARCHAR(2000);
+BEGIN
+	 SELECT table_name INTO v_result FROM ALL_TABLES
+	 		WHERE owner = upper(v_owner) AND table_name = upper(v_table_name);
+
+     RETURN 1;
+END Atr_Does_Table_Exist;
+ 
+ 
+ 

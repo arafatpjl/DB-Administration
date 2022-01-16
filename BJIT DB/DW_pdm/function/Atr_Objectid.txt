@@ -1,0 +1,40 @@
+create or replace FUNCTION Atr_Objectid (vaultid IN NUMBER, lxoid IN NUMBER) RETURN VARCHAR2 IS
+  v_vaultid NUMBER;
+  v_lxoid NUMBER;
+  v_tempid NUMBER;
+  v_next_digit NUMBER;
+  v_result VARCHAR(30);
+  objectid1 VARCHAR(60);
+  objectid2 VARCHAR(60);
+  objectid3 VARCHAR(60);
+  objectid4 VARCHAR(60);
+BEGIN
+  v_vaultid := vaultid;
+  v_lxoid := lxoid;
+
+  IF v_vaultid <0 THEN
+     v_vaultid := 4294967296 + v_vaultid;
+  END IF;
+  v_vaultid := v_vaultid / 65536;
+  v_tempid := FLOOR(v_vaultid);
+  objectid1 := TO_CHAR(v_tempid);
+  v_vaultid :=v_vaultid - v_tempid;
+  v_vaultid := v_vaultid * 65536;
+  objectid2 := TO_CHAR(FLOOR(v_vaultid));
+
+  IF v_lxoid <0 THEN
+     v_lxoid := 4294967296 + v_lxoid;
+  END IF;
+  v_lxoid := v_lxoid / 65536;
+  v_tempid := FLOOR(v_lxoid);
+  objectid3 := TO_CHAR(v_tempid);
+  v_lxoid :=v_lxoid - v_tempid;
+  v_lxoid := v_lxoid * 65536;
+  objectid4 := TO_CHAR(FLOOR(v_lxoid));
+
+  v_result := objectid1||'.'||objectid2||'.'||objectid3||'.'||objectid4;
+  RETURN v_result;
+END Atr_Objectid;
+ 
+ 
+ 

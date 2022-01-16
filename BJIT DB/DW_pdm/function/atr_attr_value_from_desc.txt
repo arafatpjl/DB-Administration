@@ -1,0 +1,27 @@
+create or replace FUNCTION atr_attr_value_from_desc(in_table IN VARCHAR2, in_lxoid IN NUMBER, in_lxtype IN NUMBER ) RETURN VARCHAR2 IS
+
+v_attr_value	VARCHAR2(4000);
+sql_string	varchar2(200);
+err_msg	varchar2(1000);
+
+BEGIN
+    sql_string := 'SELECT LXDESC FROM '||in_table||' ';
+    sql_string := sql_string||' WHERE LXOID = :2 AND LXKIND = :3 ';
+
+    err_msg := 'ok';
+    BEGIN
+     EXECUTE IMMEDIATE sql_string into v_attr_value using in_lxoid, in_lxtype;
+      EXCEPTION
+	WHEN OTHERS THEN
+           err_msg := SUBSTR(SQLERRM, 1, 100);
+    END;
+    IF err_msg = 'ok' THEN
+        RETURN v_attr_value;
+      ELSE
+        RETURN NULL;
+    END IF;
+
+END atr_attr_value_from_desc;
+ 
+ 
+ 

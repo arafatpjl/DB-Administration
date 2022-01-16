@@ -1,0 +1,37 @@
+create or replace FUNCTION ATR_GET_ATT_STRING_VALUE (in_username VARCHAR2, in_lxoid NUMBER, in_Vault_lxoid NUMBER,  in_lxtype NUMBER) RETURN VARCHAR2 AS
+    sAttrValue VARCHAR2(4000);
+    err_msg    VARCHAR2(1000);
+    sTableName VARCHAR2(60);
+    slattice   VARCHAR2(20);
+    UserName   VARCHAR2(20);
+
+BEGIN
+
+     err_msg := 'ok';
+     BEGIN
+        UserName := UPPER(in_username);
+	sLattice :=  Atr_Dec_To_Hex(in_Vault_lxoid);
+        sTableName := UserName||'.LXSTRING_'||sLattice;
+        EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||sTableName||' WHERE LXOID=:2 AND LXTYPE :3' INTO sAttrValue using in_lxoid, in_lxtype ;
+           EXCEPTION
+              WHEN OTHERS THEN
+                 err_msg := SUBSTR(SQLERRM, 1, 100);
+     END;
+
+     IF err_msg = 'ok' THEN
+       BEGIN
+        IF sAttrValue = '<<lxDescriptionTable>>' THEN
+           BEGIN
+              sAttrValue := atr_value_from_desc_table(UserName, in_lxoid, in_Vault_lxoid, in_lxtype);
+           END;
+        END IF;
+        RETURN sAttrValue;
+       END;
+      ELSE
+        RETURN NULL;
+     END IF;
+
+END;
+ 
+ 
+ 

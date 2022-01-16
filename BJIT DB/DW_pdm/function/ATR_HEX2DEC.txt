@@ -1,0 +1,26 @@
+create or replace FUNCTION "ATR_HEX2DEC" (hexnum IN CHAR) RETURN NUMBER IS
+  i                 NUMBER;
+  DIGITS            NUMBER;
+  result            NUMBER := 0;
+  current_digit     CHAR(1);
+  current_digit_dec NUMBER;
+BEGIN
+  DIGITS := LENGTH(hexnum);
+  FOR i IN 1..DIGITS LOOP
+     current_digit := SUBSTR(hexnum, i, 1);
+     IF current_digit IN ('A','B','C','D','E','F') THEN
+        current_digit_dec := ASCII(current_digit) - ASCII('A') + 10;
+     ELSE
+        current_digit_dec := TO_NUMBER(current_digit);
+     END IF;
+     result := (result * 16) + current_digit_dec;
+  END LOOP;
+  IF result > 2147483648 THEN
+  	 result := result - 4294967296;
+  END IF;
+
+  RETURN result;
+END atr_hex2dec;
+ 
+ 
+ 
