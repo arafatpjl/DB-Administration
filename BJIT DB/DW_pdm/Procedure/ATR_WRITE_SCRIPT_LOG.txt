@@ -1,0 +1,19 @@
+create or replace PROCEDURE "ATR_WRITE_SCRIPT_LOG" (scriptname IN VARCHAR2,scriptaction in VARCHAR2, log_seq in out NUMBER) AS
+	v_starttime DATE;
+	v_endtime DATE;
+
+BEGIN
+	 IF UPPER(scriptaction) = 'START' THEN
+        select logid.nextval into log_seq from dual;
+        INSERT INTO ATR_SCRIPT_LOG (SCRIPT_ID,SCRIPT_NAME,SCRIPT_ACTION,LOG_TIME,LOG_TIMESTAMP ) VALUES (log_seq,scriptname,scriptaction,SYSDATE,CURRENT_TIMESTAMP);
+     ELSE
+        INSERT INTO ATR_SCRIPT_LOG (SCRIPT_ID,SCRIPT_NAME,SCRIPT_ACTION,LOG_TIME, LOG_TIMESTAMP) VALUES (log_seq,scriptname,scriptaction,SYSDATE,CURRENT_TIMESTAMP);
+	    SELECT log_time INTO v_starttime FROM ATR_SCRIPT_LOG WHERE SCRIPT_ID=log_seq AND UPPER(SCRIPT_ACTION)='START';
+	    SELECT log_time INTO v_endtime FROM ATR_SCRIPT_LOG WHERE SCRIPT_ID=log_seq AND LOG_TIMESTAMP = (SELECT MAX(LOG_TIMESTAMP) FROM ATR_SCRIPT_LOG WHERE SCRIPT_ID=log_seq);
+	    UPDATE ATR_SCRIPT_LOG SET script_duration=Atr_Time_Diff(v_starttime,v_endtime) WHERE SCRIPT_ID=log_seq AND SCRIPT_ACTION=scriptaction;
+	END IF;
+	COMMIT;
+END;
+ 
+ 
+ 

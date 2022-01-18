@@ -1,0 +1,102 @@
+create or replace PROCEDURE dw_commercial_item_texts_u (inUsername IN VARCHAR2, InIntegID IN INTEGER) AS
+
+ UserName VARCHAR2(20);
+ VaultName VARCHAR2(128);
+
+ TableName1 VARCHAR2(60);
+ TableName2 VARCHAR2(60);
+ TableName3 VARCHAR2(60);
+
+ TYPE CurTyp IS REF CURSOR;
+
+ c1 CurTyp;
+ c2 CurTyp;
+ cursor_str1 VARCHAR2(1000);
+ cursor_str2 VARCHAR2(1000);
+
+ logmessage VARCHAR2(255);
+
+
+ v_lxoid number;
+ v_lxvault number;
+
+ iTotalNumber number;
+ ilooptest number;
+
+ s_val1 varchar2(255);
+ s_val2 varchar2(255);
+ s_val3 varchar2(255);
+ s_attribute_name varchar2(255);
+ s_sql_string varchar2(1000);
+ log_ID NUMBER := 0;
+ icheck NUMBER;
+ sLattice VARCHAR2(20);
+ v_DeliveryID NUMBER;
+ v_RelID NUMBER;
+ v_TextAttrID NUMBER;
+ v_CommercialTextBusTypeId NUMBER;
+ v_oid1 NUMBER;
+ v_oid2 NUMBER;
+ v_o_id1 VARCHAR2(40);
+ v_o_id2 VARCHAR2(40);
+ v_DeliveryAttrValue VARCHAR2(4000);
+
+BEGIN
+
+
+
+	UserName := UPPER(inUsername);
+
+
+	v_DeliveryID := ATR_GETATTROID(inUsername,'Project search key');
+
+        v_CommercialTextBusTypeId := ATR_GETBUSTYPEOID(inUsername,'Commercial item common texts');
+        v_RelID := ATR_GETRELTYPEOID(inUsername,'Texts');
+
+        EXECUTE IMMEDIATE 'TRUNCATE TABLE ATR_REL_LXOID_TEMP1';
+        EXECUTE IMMEDIATE 'TRUNCATE TABLE ATR_REL_LXOID_TEMP2';
+
+              TableName1 := UserName||'.LXBO_'||sLattice;
+
+              cursor_str1 := 'SELECT LXOID, LXVAULT FROM INTEG_OBJECTS_MAIN WHERE LXTYPE = :1 AND O_TRF_STATUS1 = 1';
+              OPEN c1 FOR cursor_str1 USING v_CommercialTextBusTypeId;
+
+              LOOP
+                FETCH c1 INTO v_oid1, v_lxvault;
+                   EXIT WHEN c1%NOTFOUND;
+                     BEGIN
+                         sLattice :=  Atr_Dec_To_Hex(v_lxvault);
+                         TableName2 := UserName||'.LXRO_'||sLattice;
+
+                         cursor_str2 := 'SELECT LXOID, ATR_OBJECTID(T1.LXTOLAT,T1.LXTOID) FROM '||TableName2||' T1 WHERE T1.LXFROMID = :1 AND T1.LXFROMLAT = :2 AND T1.LXTYPE = :3';
+                         OPEN c2 FOR cursor_str2 USING v_oid1, v_lxvault, v_RelID ;
+                         LOOP
+                             FETCH c2 INTO v_oid2, v_o_id2;
+                               EXIT WHEN c2%NOTFOUND;
+                                  BEGIN
+                                     v_DeliveryAttrValue := ATR_GET_ATT_STRING_VALUE(UserName,v_oid2,v_lxvault,v_DeliveryID);
+                                     TableName3 := UserName||'.LXSTRING_'||sLattice;
+                                     s_sql_string := 'INSERT INTO ATR_REL_LXOID_TEMP1 (PARENT_O_ID, CHILD_O_ID, REL_LXOID, LXVAL1, LXVAL2, LXVAL3) ';
+                                     s_sql_string := s_sql_string||'SELECT ATR_OBJECTID(:1,:2), :3, LXTYPE,  atr_getattrname(:4,LXTYPE), LXVAL, :5';
+                                     s_sql_string := s_sql_string||' FROM '||TableName3||' T1';
+                                     s_sql_string := s_sql_string||' WHERE T1.LXOID = :6';
+                                     s_sql_string := s_sql_string||' AND T1.LXVAL IS NOT NULL';
+				     s_sql_string := s_sql_string||' AND T1.LXVAL NOT LIKE :7  ';
+
+
+                                     EXECUTE IMMEDIATE s_sql_string using v_lxvault,v_oid1, v_o_id2, UserName, v_DeliveryAttrValue,v_oid1,'<No translation existing%' ;
+                                     COMMIT;
+                                  END;
+                         END LOOP;
+
+
+                     END;
+              END LOOP;
+
+        dw_upd_comm_item_long_string(inUsername);
+        EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS (INTEG_ID, O_ID, ATTR_NAME, ATTR_VALUE, DELIVERY_PROJECT_ID)  SELECT :1, CHILD_O_ID, LXVAL1,LXVAL2,LXVAL3 FROM ATR_REL_LXOID_TEMP1' using InIntegID;
+        COMMIT;
+END;
+ 
+ 
+ 

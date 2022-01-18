@@ -1,0 +1,258 @@
+create or replace PROCEDURE dw_bom_external_data(inUsername IN VARCHAR2, InIntegID IN INTEGER, InVaultId IN NUMBER, InVaultName IN VARCHAR2,InLogId IN NUMBER) AS
+
+ UserName VARCHAR2(20);
+ VaultName VARCHAR2(128);
+
+ TableName VARCHAR2(60);
+
+ TYPE CurTyp IS REF CURSOR;
+
+ c_bus CurTyp;
+ cursor_str VARCHAR2(200);
+
+
+ logmessage VARCHAR2(255);
+
+
+ v_lxoid number;
+ v_lxvault number;
+
+ iTotalNumber number;
+ ilooptest number;
+
+ s_val1 varchar2(255);
+ s_val2 varchar2(255);
+ s_val3 varchar2(255);
+ s_attribute_name varchar2(255);
+ s_sql_string varchar2(1000);
+ log_ID NUMBER := 0;
+ icheck NUMBER;
+ sLattice VARCHAR2(20);
+ v_DeliveryID NUMBER;
+
+ v_TextAttrID NUMBER;
+ v_RelBOMlxoid NUMBER;
+ v_RelCustomerAttributeslxoid NUMBER;
+ v_CABOMMappingID NUMBER;
+ v_CustDeviceID NUMBER;
+ v_CustDevicePositionID NUMBER;
+
+
+BEGIN
+	log_ID := InLogId;
+ 	logmessage := 'dw_item_external_texts : Vault : '||InVaultName||' is started ...';
+ 	Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+	UserName := UPPER(inUsername);
+	sLattice :=  Atr_Dec_To_Hex(InVaultId);
+
+	v_RelBOMlxoid := ATR_GETRELTYPEOID(inUsername,'BOM');
+        v_RelCustomerAttributeslxoid := ATR_GETRELTYPEOID(inUsername,'Customer attributes');
+        v_TextAttrID := ATR_GETATTROID(inUsername,'External text');
+	v_DeliveryID := ATR_GETATTROID(inUsername,'Delivery search key');
+        v_CABOMMappingID := ATR_GETATTROID(inUsername,'CA-BOM mapping');
+        v_CustDeviceID := ATR_GETATTROID(inUsername,'Customer device ID');
+        v_CustDevicePositionID := ATR_GETATTROID(inUsername,'Customer device position');
+
+        EXECUTE IMMEDIATE 'TRUNCATE TABLE ATR_REL_LXOID_TEMP1';
+        EXECUTE IMMEDIATE 'TRUNCATE TABLE ATR_REL_LXOID_TEMP2';
+        COMMIT;
+
+ 	IF InIntegID = 0 THEN
+           BEGIN
+
+  	      logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , Relations ->  ATR_REL_LXOID_TEMP2 ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+              TableName := UserName||'.LXRO_'||sLattice;
+	      s_sql_string := 'INSERT INTO ATR_REL_LXOID_TEMP2 (PARENT_LXOID, PARENT_VAULT_LXOID, PARENT_O_ID, REL_LXOID, CHILD_O_ID) ';
+              s_sql_string := s_sql_string||' SELECT T1.LXFROMID,T1.LXFROMLAT, ATR_OBJECTID(T1.LXFROMLAT,T1.LXFROMID), T1.LXOID, ATR_OBJECTID(T1.LXTOLAT,T1.LXTOID)';
+              s_sql_string := s_sql_string||' FROM  '||TableName||' T1';
+              s_sql_string := s_sql_string||' WHERE T1.LXTYPE = :1';
+              EXECUTE IMMEDIATE s_sql_string using v_RelCustomerAttributeslxoid;
+              COMMIT;
+ 	      logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , ATR_REL_LXOID_TEMP2 completed';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+	      logmessage := 'w_bom_external_texts  - attribute Delivery search key : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+   	      TableName := UserName||'.LXSTRING_'||sLattice;
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP2 T1 SET T1.LXVAL1 = ';
+              s_sql_string := s_sql_string||' (SELECT LXVAL FROM '||TableName||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = T1.REL_LXOID) ';
+
+              EXECUTE IMMEDIATE s_sql_string using v_DeliveryID;
+              logmessage := 'w_bom_external_texts  - attribute Delivery search key : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+
+	      logmessage := 'w_bom_external_texts  - attribute CA-BOM mapping : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+   	      TableName := UserName||'.LXSTRING_'||sLattice;
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP2 T1 SET T1.LXVAL2 = ';
+              s_sql_string := s_sql_string||' (SELECT LXVAL FROM '||TableName||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = T1.REL_LXOID) ';
+
+              EXECUTE IMMEDIATE s_sql_string using v_CABOMMappingID;
+              logmessage := 'w_bom_external_texts  - attribute CA-BOM mapping : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+
+	      logmessage := 'w_bom_external_texts  - attribute Customer device ID : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+   	      TableName := UserName||'.LXSTRING_'||sLattice;
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP2 T1 SET T1.LXVAL3 = ';
+              s_sql_string := s_sql_string||' (SELECT LXVAL FROM '||TableName||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = T1.REL_LXOID) ';
+
+              EXECUTE IMMEDIATE s_sql_string using v_CustDeviceID;
+              logmessage := 'w_bom_external_texts  - attribute Customer device ID : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+      	      logmessage := 'w_bom_external_texts  - attribute Customer device position : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+   	      TableName := UserName||'.LXSTRING_'||sLattice;
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP2 T1 SET T1.LXVAL4 = ';
+              s_sql_string := s_sql_string||' (SELECT LXVAL FROM '||TableName||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = T1.REL_LXOID) ';
+
+              EXECUTE IMMEDIATE s_sql_string using v_CustDevicePositionID;
+              logmessage := 'w_bom_external_texts  - attribute Customer device position : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+	      logmessage := 'w_bom_external_texts  - attribute External text : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+   	      TableName := UserName||'.LXSTRING_'||sLattice;
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP2 T1 SET T1.LXVAL5 = ';
+              s_sql_string := s_sql_string||' (SELECT LXVAL FROM '||TableName||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = T1.REL_LXOID) ';
+
+              EXECUTE IMMEDIATE s_sql_string using v_TextAttrID;
+
+              logmessage := 'w_bom_external_texts  - attribute External text : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+	      logmessage := 'w_bom_external_texts  - delete rel, where attributes null : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+              s_sql_string := 'DELETE FROM ATR_REL_LXOID_TEMP2 T1 WHERE (T1.LXVAL3 IS NULL AND T1.LXVAL4 IS NULL AND T1.LXVAL5 IS NULL) OR T1.LXVAL1 IS NULL OR T1.LXVAL2 IS NULL ';
+
+              EXECUTE IMMEDIATE s_sql_string;
+
+              logmessage := 'w_bom_external_texts  - delete rel, where attributes null : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+  	      logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , Relations ->  ATR_REL_LXOID_TEMP1 ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+              TableName := UserName||'.LXRO_'||sLattice;
+	      s_sql_string := 'INSERT INTO ATR_REL_LXOID_TEMP1 (PARENT_LXOID, PARENT_VAULT_LXOID, REL_LXOID, PARENT_O_ID, CHILD_O_ID) ';
+              s_sql_string := s_sql_string||'SELECT T1.LXFROMID, T1.LXFROMLAT, T1.LXOID,ATR_OBJECTID(T1.LXFROMLAT,T1.LXFROMID),ATR_OBJECTID(T1.LXTOLAT,T1.LXTOID) ';
+              s_sql_string := s_sql_string||' FROM  '||TableName||' T1';
+              s_sql_string := s_sql_string||' WHERE T1.LXTYPE = :1';
+              EXECUTE IMMEDIATE s_sql_string using v_RelBOMlxoid;
+              COMMIT;
+ 	      logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , ATR_REL_LXOID_TEMP1 completed';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+	      EXECUTE IMMEDIATE 'TRUNCATE TABLE ATR_LXOID_TEMP2';
+
+	      logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , attribute CA-BOM mapping ->  ATR_LXOID_TEMP2 ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+               TableName := UserName||'.LXSTRING_'||sLattice;
+	      s_sql_string := 'INSERT INTO ATR_LXOID_TEMP2 (LXOID, LXVAL1) ';
+              s_sql_string := s_sql_string||'SELECT T1.LXOID, T1.LXVAL ';
+              s_sql_string := s_sql_string||' FROM  '||TableName||' T1';
+              s_sql_string := s_sql_string||' WHERE T1.LXTYPE = :1';
+	      s_sql_string := s_sql_string||' AND T1.LXVAL is not null';
+              EXECUTE IMMEDIATE s_sql_string using v_CABOMMappingID;
+              COMMIT;
+ 	      logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , attribute CA-BOM mapping ->  ATR_LXOID_TEMP2 completed';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+
+	      logmessage := 'w_bom_external_texts  - attribute CA-BOM mapping : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+   	      TableName := UserName||'.LXSTRING_'||sLattice;
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP1 T1 SET T1.LXVAL2 = ';
+              s_sql_string := s_sql_string||' (SELECT LXVAL1 FROM ATR_LXOID_TEMP2 T2 WHERE T2.LXOID = T1.REL_LXOID) ';
+	      s_sql_string := s_sql_string||' WHERE T1.REL_LXOID IN (SELECT LXOID FROM ATR_LXOID_TEMP2)';
+              EXECUTE IMMEDIATE s_sql_string;
+              logmessage := 'w_bom_external_texts  - attribute CA-BOM mapping : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+	      logmessage := 'w_bom_external_texts  - delete rel, where attributes null : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+              s_sql_string := 'DELETE FROM ATR_REL_LXOID_TEMP1 T1 WHERE  T1.LXVAL2 IS NULL ';
+
+              EXECUTE IMMEDIATE s_sql_string;
+
+              logmessage := 'w_bom_external_texts  - delete rel, where attributes null : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+	      logmessage := 'w_bom_external_texts  - update BOM rel id : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+              s_sql_string := 'UPDATE ATR_REL_LXOID_TEMP2 T1 SET T1.LXVAL6 = ';
+              s_sql_string := s_sql_string||' (SELECT ATR_OBJECTID(T2.PARENT_VAULT_LXOID,T2.REL_LXOID) FROM ATR_REL_LXOID_TEMP1 T2 WHERE T2.LXvAL2 = T1.LXVAL2 AND T2.PARENT_O_ID = T1.PARENT_O_ID AND T2.CHILD_O_ID = T1.CHILD_O_ID ) ';
+
+              EXECUTE IMMEDIATE s_sql_string;
+              logmessage := 'w_bom_external_texts  - update BOM rel id : Vault : '||InVaultName||' is completed';
+    	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      COMMIT;
+
+	      logmessage := 'w_bom_external_texts  - Copy  Customer device ID : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      s_sql_string := 'INSERT INTO INTEG_REL_ATTR_STRING_A (REL_ID, ATTR_NAME, ATTR_ID, ATTR_VALUE, DELIVERY_PROJECT_ID) ';
+              s_sql_string := s_sql_string||' SELECT T1.LXVAL6, :1, 6000, T1.LXVAL3, T1.LXVAL1 ';
+	      s_sql_string := s_sql_string||' FROM ATR_REL_LXOID_TEMP2 T1 ';
+              s_sql_string := s_sql_string||' WHERE T1.LXVAL3 IS NOT NULL ';
+	      s_sql_string := s_sql_string||' AND T1.LXVAL6 IS NOT NULL ';
+              EXECUTE IMMEDIATE s_sql_string using 'Customer device ID';
+
+	      logmessage := 'w_bom_external_texts  - Copy  Customer device ID : Vault : '||InVaultName||' completed';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+	      logmessage := 'w_bom_external_texts  - Copy Customer device position : Vault : '||InVaultName||' is started ...';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+	      s_sql_string := 'INSERT INTO INTEG_REL_ATTR_STRING_A (REL_ID, ATTR_NAME, ATTR_ID, ATTR_VALUE, DELIVERY_PROJECT_ID) ';
+              s_sql_string := s_sql_string||' SELECT T1.LXVAL6, :1, 6001,T1.LXVAL4, T1.LXVAL1 ';
+	      s_sql_string := s_sql_string||' FROM ATR_REL_LXOID_TEMP2 T1 ';
+              s_sql_string := s_sql_string||' WHERE T1.LXVAL4 IS NOT NULL ';
+	      s_sql_string := s_sql_string||' AND T1.LXVAL6 IS NOT NULL ';
+              EXECUTE IMMEDIATE s_sql_string using 'Customer device position';
+
+	      logmessage := 'w_bom_external_texts  - Copy Customer device position : Vault : '||InVaultName||' completed';
+ 	      Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+
+           END;
+         ELSE
+           BEGIN
+	  	NULL;
+	   END;
+       END IF;
+
+
+
+       logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , copying table T_DW_TEXTS ...';
+       Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+       s_sql_string := 'INSERT INTO T_DW_TEXTS  (LXOID, LXVAULT, LXTYPE, O_ID, LXVAL1, LXVAL3, DEPENDENCY_TYPE,O_ATTR_NAME, O_ATTR_NAME_PREFIX,DEPENDENCY_ID) ';
+       s_sql_string := s_sql_string||'SELECT T1.REL_LXOID, T1.PARENT_VAULT_LXOID, :1, T1.LXVAL6, T1.LXVAL5, T1.LXVAL5,:2,:3, :4, T1.LXVAL1 ';
+       s_sql_string := s_sql_string||' FROM  ATR_REL_LXOID_TEMP2 T1';
+       s_sql_string := s_sql_string||' WHERE T1.LXVAL5 IS NOT NULL';
+       s_sql_string := s_sql_string||' AND T1.LXVAL6 IS NOT NULL';
+       EXECUTE IMMEDIATE s_sql_string using v_TextAttrID,'External BOM texts', 'External text', 'BOM ';
+       COMMIT;
+       logmessage := 'w_bom_external_texts : Vault : '||InVaultName||' , copying table T_DW_TEXTS  completed';
+       Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+
+
+	COMMIT;
+
+END;
+ 
+ 
+ 

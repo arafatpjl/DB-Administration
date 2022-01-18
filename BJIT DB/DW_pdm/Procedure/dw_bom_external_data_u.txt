@@ -1,0 +1,205 @@
+create or replace PROCEDURE dw_bom_external_data_u(inUsername IN VARCHAR2, InIntegID IN INTEGER,InLxoId IN NUMBER, InVaultId IN NUMBER, InVaultName IN VARCHAR2,InLogId IN NUMBER) AS
+
+ UserName VARCHAR2(20);
+ VaultName VARCHAR2(128);
+
+ TableName VARCHAR2(60);
+ TableName2 VARCHAR2(60);
+
+ TYPE CurTyp IS REF CURSOR;
+
+ c1 CurTyp;
+ c2 CurTyp;
+
+ cursor_str VARCHAR2(200);
+
+ logmessage VARCHAR2(255);
+
+
+ v_lxoid number;
+ v_lxvault number;
+
+ iTotalNumber number;
+ ilooptest number;
+
+ s_delivery_search_key varchar2(255);
+ s_cust_rel_ca_bom_mapping1 varchar2(255);
+ s_bom_rel_ca_bom_mapping1 varchar2(255);
+ s_CustDeviceID varchar2(255);
+ s_CustDevicePositionID varchar2(255);
+ s_TextAttrID varchar2(255);
+ s_CustDeviceID_length NUMBER;
+ s_CustDevicePositionID_length NUMBER;
+ s_TextAttrID_length NUMBER;
+
+
+ s_val3 varchar2(255);
+ s_val4 varchar2(255);
+ s_val5 varchar2(255);
+ s_attribute_name varchar2(255);
+ s_sql_string varchar2(1000);
+ log_ID NUMBER := 0;
+ icheck NUMBER;
+ sLattice VARCHAR2(20);
+ v_DeliveryID NUMBER;
+
+ v_TextAttrID NUMBER;
+ v_RelBOMlxoid NUMBER;
+ v_RelCustomerAttributeslxoid NUMBER;
+ v_CABOMMappingID NUMBER;
+ v_CustDeviceID NUMBER;
+ v_CustDevicePositionID NUMBER;
+ v_rowcount1 NUMBER;
+ v_rowcount2 NUMBER;
+ v_rellxoid NUMBER;
+ v_BOMrellxoid NUMBER;
+ err_msg VARCHAR2(1000);
+ cursor_str1 VARCHAR2(1000);
+ cursor_str2 VARCHAR2(1000);
+
+BEGIN
+	log_ID := InLogId;
+
+	UserName := UPPER(inUsername);
+	sLattice :=  Atr_Dec_To_Hex(InVaultId);
+
+
+
+	v_RelBOMlxoid := ATR_GETRELTYPEOID(inUsername,'BOM');
+        v_RelCustomerAttributeslxoid := ATR_GETRELTYPEOID(inUsername,'Customer attributes');
+        v_TextAttrID := ATR_GETATTROID(inUsername,'External text');
+	v_DeliveryID := ATR_GETATTROID(inUsername,'Delivery search key');
+        v_CABOMMappingID := ATR_GETATTROID(inUsername,'CA-BOM mapping');
+        v_CustDeviceID := ATR_GETATTROID(inUsername,'Customer device ID');
+        v_CustDevicePositionID := ATR_GETATTROID(inUsername,'Customer device position');
+
+        TableName := UserName||'.LXRO_'||sLattice;
+        TableName2 := UserName||'.LXSTRING_'||sLattice;
+
+        cursor_str1 := 'SELECT T1.LXOID FROM '||TableName||' T1 WHERE LXFROMID =  :1 AND LXFROMLAT = :2 AND LXTYPE = :3';
+
+
+
+        OPEN c1 FOR cursor_str1 USING InLxoId, InVaultId, v_RelCustomerAttributeslxoid;
+
+        LOOP
+           FETCH c1 INTO v_rellxoid;
+	      EXIT WHEN c1%NOTFOUND;
+		BEGIN
+                   err_msg := 'ok';
+                   s_delivery_search_key := '';
+                   BEGIN
+                      EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||TableName2||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = :2' into s_delivery_search_key USING v_DeliveryID, v_rellxoid;
+                        EXCEPTION
+			   WHEN OTHERS THEN
+                               err_msg := SUBSTR(SQLERRM, 1, 100);
+                   END;
+                   IF err_msg = 'ok' THEN
+                      IF LENGTH(TRIM(s_delivery_search_key)||' ') > 1 THEN
+                           err_msg := 'ok';
+                           s_cust_rel_ca_bom_mapping1 := '';
+                           BEGIN
+                              EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||TableName2||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = :2' into s_cust_rel_ca_bom_mapping1 USING v_CABOMMappingID, v_rellxoid;
+                                EXCEPTION
+			            WHEN OTHERS THEN
+                                       err_msg := SUBSTR(SQLERRM, 1, 100);
+			   END;
+
+                           IF err_msg = 'ok' THEN
+                                  IF LENGTH(TRIM(s_cust_rel_ca_bom_mapping1)||' ') > 1 THEN
+                                      err_msg := 'ok';
+                                      s_CustDeviceID := '';
+                                      BEGIN
+                                         EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||TableName2||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = :2' into s_CustDeviceID USING v_CustDeviceID, v_rellxoid;
+                                           EXCEPTION
+			                      WHEN OTHERS THEN
+                                                err_msg := SUBSTR(SQLERRM, 1, 100);
+                                      END;
+                                      s_CustDeviceID_length := LENGTH(TRIM(s_CustDeviceID)||' ') - 1;
+                                      err_msg := 'ok';
+                                      s_CustDevicePositionID := '';
+                                      BEGIN
+                                         EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||TableName2||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = :2' into s_CustDevicePositionID USING v_CustDevicePositionID, v_rellxoid;
+                                           EXCEPTION
+			                      WHEN OTHERS THEN
+                                                err_msg := SUBSTR(SQLERRM, 1, 100);
+                                      END;
+                                      s_CustDevicePositionID_length := LENGTH(TRIM(s_CustDevicePositionID)||' ') - 1;
+                                      err_msg := 'ok';
+                                      s_TextAttrID := '';
+                                      BEGIN
+                                         EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||TableName2||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = :2' into s_TextAttrID USING v_TextAttrID, v_rellxoid;
+                                           EXCEPTION
+			                      WHEN OTHERS THEN
+                                                err_msg := SUBSTR(SQLERRM, 1, 100);
+                                      END;
+                                      s_TextAttrID_length := LENGTH(TRIM(s_TextAttrID)||' ') - 1;
+
+				      IF (s_CustDeviceID_length > 0) OR (s_CustDevicePositionID_length > 0) OR (s_TextAttrID_length > 0) THEN
+                                            cursor_str2 := 'SELECT T1.LXOID FROM '||TableName||' T1 WHERE LXFROMID =  :1 AND LXFROMLAT = :2 AND LXTYPE = :3';
+                                            OPEN c2 FOR cursor_str1 USING InLxoId, InVaultId, v_RelBOMlxoid;
+
+				            LOOP
+                                                FETCH c2 INTO v_BOMrellxoid;
+                                                  EXIT WHEN c2%NOTFOUND;
+                                                    BEGIN
+                                                       s_bom_rel_ca_bom_mapping1 := '';
+                                                       err_msg := 'ok';
+						       BEGIN
+                                                          EXECUTE IMMEDIATE 'SELECT LXVAL FROM '||TableName2||' T2 WHERE T2.LXTYPE = :1 AND T2.LXOID = :2' into s_bom_rel_ca_bom_mapping1 USING v_CABOMMappingID, v_BOMrellxoid;
+                                                             EXCEPTION
+                                                               WHEN OTHERS THEN
+                                                                  err_msg := SUBSTR(SQLERRM, 1, 100);
+                                                       END;
+                                                       IF TRIM(s_bom_rel_ca_bom_mapping1) = TRIM(s_cust_rel_ca_bom_mapping1) THEN
+                                                          BEGIN
+
+                                                             IF s_CustDeviceID_length > 0 THEN
+                                                              s_sql_string := 'INSERT INTO INTEG_REL_ATTR_STRING (INTEG_ID, REL_ID, ATTR_NAME, ATTR_ID, ATTR_VALUE, DELIVERY_PROJECT_ID) ';
+              						      s_sql_string := s_sql_string||' VALUES ';
+	                                                      s_sql_string := s_sql_string||' (:1, ATR_OBJECTID(:2,:3), :4, :5,:6, :7) ';
+                                                              EXECUTE IMMEDIATE s_sql_string using InIntegID,InVaultId,v_BOMrellxoid, 'Customer device ID',6000,s_CustDeviceID,s_delivery_search_key;
+                                                              COMMIT;
+                                                             END IF;
+                                                             IF s_CustDevicePositionID_length > 0 THEN
+                                                              s_sql_string := 'INSERT INTO INTEG_REL_ATTR_STRING (INTEG_ID, REL_ID, ATTR_NAME, ATTR_ID, ATTR_VALUE, DELIVERY_PROJECT_ID) ';
+              						      s_sql_string := s_sql_string||' VALUES ';
+	                                                      s_sql_string := s_sql_string||' (:1, ATR_OBJECTID(:2,:3), :4, :5,:6, :7) ';
+                                                              EXECUTE IMMEDIATE s_sql_string using InIntegID,InVaultId,v_BOMrellxoid, 'Customer device position',6001,s_CustDevicePositionID,s_delivery_search_key;
+                                                              COMMIT;
+                                                             END IF;
+                                                             IF s_TextAttrID_length > 0 THEN
+                                                              s_sql_string := 'INSERT INTO T_DW_TEXTS  (LXOID, LXVAULT, LXTYPE, O_ID, LXVAL1, LXVAL3, DEPENDENCY_TYPE,O_ATTR_NAME, O_ATTR_NAME_PREFIX,DEPENDENCY_ID) ';
+              						      s_sql_string := s_sql_string||' VALUES ';
+	                                                      s_sql_string := s_sql_string||' (:1, :2, :3, ATR_OBJECTID(:4,:5), :6, :7, :8, :9, :10, :11)';
+
+                                                              EXECUTE IMMEDIATE s_sql_string using v_BOMrellxoid,InVaultId, v_TextAttrID,v_BOMrellxoid,InVaultId, s_TextAttrID,s_TextAttrID,'External BOM texts', 'External text', 'BOM ',s_delivery_search_key;
+
+                                                              COMMIT;
+                                                             END IF;
+
+
+                                                          END;
+                                                       END IF;
+
+						    END;
+                                                  EXIT WHEN TRIM(s_bom_rel_ca_bom_mapping1) = TRIM(s_cust_rel_ca_bom_mapping1);
+                                            END LOOP;
+
+				      END IF;
+
+                                  END IF;
+                           END IF;
+
+                      END IF;
+                   END IF;
+		END;
+	END LOOP;
+
+
+
+
+END;
+ 
+ 
+ 

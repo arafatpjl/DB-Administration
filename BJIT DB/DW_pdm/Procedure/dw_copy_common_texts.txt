@@ -1,0 +1,125 @@
+create or replace PROCEDURE dw_copy_common_texts (inUsername IN VARCHAR2, InIntegID IN INTEGER, InVaultId IN NUMBER, InVaultName IN VARCHAR2,InLogId IN NUMBER) AS
+	UserName VARCHAR2(20);
+	VaultName VARCHAR2(128);
+	LatticeNum VARCHAR2(50);
+	TableName VARCHAR2(60);
+	typeTableName VARCHAR2(60);
+	objTableName VARCHAR2(60);
+	tmpTableName VARCHAR2(60);
+        LatticeOid NUMBER;
+ TYPE CurTyp IS REF CURSOR;
+ c_lattice CurTyp;
+ c_bus CurTyp;
+ cursor_str VARCHAR2(200);
+	cursor_str_bus VARCHAR2(2000);
+	ObjType VARCHAR2(128);
+	ObjName VARCHAR2(128);
+	ObjRev VARCHAR2(128);
+	ObjId VARCHAR2(40);
+	ObjLXOID NUMBER(38);
+        ObjNameValid NUMBER(38);
+        ObjRevisionValid NUMBER(38);
+	objNameLength NUMBER(38);
+	icheck NUMBER;
+	ilooptest NUMBER;
+ ibusrows NUMBER;
+ irownumber NUMBER;
+ logmessage VARCHAR2(255);
+ sql_str1 VARCHAR2(4000);
+ log_ID NUMBER := 0;
+
+ v_CommonTextId NUMBER;
+ v_ManufacturingTextId NUMBER;
+ v_PurchasingTextId NUMBER;
+ v_DependencyType VARCHAR2(40);
+
+BEGIN
+
+        log_ID := InLogId;
+
+	icheck := 0;
+	ilooptest := 1;
+	irownumber := 1;
+	UserName := UPPER(inUsername);
+        LatticeNum :=  Atr_Dec_To_Hex(InVaultId);
+
+	typeTableName := Username||'.MXBUSTYPE';
+
+  	EXECUTE IMMEDIATE 'SELECT MXOID FROM '||UserName||'.MXATTRTYPE WHERE MXNAME = ''Common text'''  into v_CommonTextId;
+  	EXECUTE IMMEDIATE 'SELECT MXOID FROM '||UserName||'.MXATTRTYPE WHERE MXNAME = ''Purchasing text'''  into v_PurchasingTextId;
+	EXECUTE IMMEDIATE 'SELECT MXOID FROM '||UserName||'.MXATTRTYPE WHERE MXNAME = ''Manufacturing text'''  into v_ManufacturingTextId;
+
+
+			icheck := 0;
+			TableName := 'LXSTRING_'||LatticeNum;
+			SELECT Atr_Does_Table_Exist(Username,TableName) INTO icheck FROM DUAL;
+			IF ((icheck IS NOT NULL)) THEN
+
+				logmessage := 'Vault: '||InVaultName|| ' copying text is started';
+ 				Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+			        TableName := Username||'.'||TableName;
+
+
+				logmessage := 'Vault: '||InVaultName||' Item, copying texts .. ';
+				Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+				v_DependencyType := 'Item texts';
+
+				sql_str1 := 'INSERT INTO T_DW_TEXTS (LXOID,LXTYPE,LXVAULT,LXVAL1,LXVAL3,O_ID, DEPENDENCY_TYPE,O_ATTR_NAME,O_ATTR_NAME_PREFIX)';
+                                sql_str1 := sql_str1||' SELECT T1.LXOID, T1.LXTYPE, :1, T1.LXVAL, T1.LXVAL, ATR_OBJECTID(:2,T1.LXOID), :3, T2.MXNAME, :4 ';
+                                sql_str1 := sql_str1||' FROM '||Tablename||' T1, '||UserName||'.MXATTRTYPE T2  ';
+                                sql_str1 := sql_str1||' WHERE LXTYPE IN ('||v_CommonTextId||','||v_PurchasingTextId||','||v_PurchasingTextId||') ';
+                                sql_str1 := sql_str1||' AND T1.LXTYPE = T2.MXOID ';
+				sql_str1 := sql_str1||' AND T1.LXOID IN (SELECT T5.LXOID FROM INTEG_OBJ_A T5 WHERE lxvault = :5)';
+                                sql_str1 := sql_str1||' AND LXVAL IS NOT NULL';
+
+				EXECUTE IMMEDIATE sql_str1 using InVaultId, InVaultId, 'Item texts', 'Item ', InVaultId;
+                                COMMIT;
+
+				logmessage := 'Vault: '||InVaultName||' Item, copying texts completed ';
+				Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+				logmessage := 'Vault: '||VaultName||' BOM, copying texts ..';
+				Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+				EXECUTE IMMEDIATE 'TRUNCATE TABLE ATR_LXOID_TEMP1';
+				TableName := 'LXRO_'||LatticeNum;
+				TableName := Username||'.'||TableName;
+
+				sql_str1 := 'INSERT INTO ATR_LXOID_TEMP1 (LXOID) ';
+              			sql_str1 := sql_str1||'SELECT T1.LXOID';
+              			sql_str1 := sql_str1||' FROM  '||TableName||' T1';
+              			sql_str1 := sql_str1||' WHERE T1.LXFROMID IN (SELECT T5.LXOID FROM INTEG_OBJ_A T5 WHERE lxvault = :1)';
+	      			sql_str1 := sql_str1||' AND T1.LXTYPE IN (SELECT LXTYPE FROM INTEG_DW_RELS)';
+              			EXECUTE IMMEDIATE sql_str1 using InVaultId;
+              			COMMIT;
+
+				TableName := 'LXSTRING_'||LatticeNum;
+				TableName := Username||'.'||TableName;
+
+				sql_str1 := 'INSERT INTO T_DW_TEXTS (LXOID,LXTYPE,LXVAULT,LXVAL1,LXVAL3,O_ID, DEPENDENCY_TYPE,O_ATTR_NAME,O_ATTR_NAME_PREFIX)';
+                                sql_str1 := sql_str1||' SELECT T1.LXOID, T1.LXTYPE, :1, T1.LXVAL, T1.LXVAL, ATR_OBJECTID(:2,T1.LXOID), :3, T2.MXNAME, :4 ';
+                                sql_str1 := sql_str1||' FROM '||Tablename||' T1, '||UserName||'.MXATTRTYPE T2  ';
+                                sql_str1 := sql_str1||' WHERE LXTYPE IN ('||v_CommonTextId||','||v_PurchasingTextId||','||v_PurchasingTextId||') ';
+                                sql_str1 := sql_str1||' AND T1.LXTYPE = T2.MXOID ';
+				sql_str1 := sql_str1||' AND T1.LXOID IN (SELECT LXOID FROM ATR_LXOID_TEMP1)';
+                                sql_str1 := sql_str1||' AND LXVAL IS NOT NULL';
+
+				EXECUTE IMMEDIATE sql_str1 using InVaultId, InVaultId, 'BOM texts', 'BOM ';
+                                COMMIT;
+				logmessage := 'Vault: '||InVaultName||' BOM, copying texts completed';
+				Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+
+				logmessage := 'Vault: '||InVaultName|| ' copying text completed';
+				Atr_Write_Script_Log('dw_main',logmessage,log_ID);
+				COMMIT;
+				ilooptest := ilooptest + 1;
+			END IF;
+
+
+
+END;
+ 
+ 
+ 

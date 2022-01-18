@@ -1,0 +1,88 @@
+create or replace PROCEDURE dw_create_obj_ids (inUsername IN VARCHAR2) AS
+	UserName VARCHAR2(20);
+	VaultName VARCHAR2(128);
+	LatticeNum VARCHAR2(50);
+	mainTableName VARCHAR2(60);
+        sql_str1 VARCHAR2(1024);
+        latticeoid NUMBER;
+	typeTableName VARCHAR2(60);
+	objTableName VARCHAR2(60);
+	tmpTableName VARCHAR2(60);
+ TYPE CurTyp IS REF CURSOR;
+ c_lattice CurTyp;
+ c_bus CurTyp;
+ cursor_str VARCHAR2(200);
+	cursor_str_bus VARCHAR2(2000);
+	ObjType VARCHAR2(128);
+	ObjName VARCHAR2(128);
+	ObjRev VARCHAR2(128);
+	ObjId VARCHAR2(40);
+	ObjLXOID NUMBER(38);
+        ObjNameValid NUMBER(38);
+        ObjRevisionValid NUMBER(38);
+	objNameLength NUMBER(38);
+	icheck NUMBER;
+	ilooptest NUMBER;
+ ibusrows NUMBER;
+ irownumber NUMBER;
+ logmessage VARCHAR2(255);
+ log_ID NUMBER := 0;
+
+
+BEGIN
+ 	Atr_Write_Script_Log('Atr_dw_create_obj_ids','Start',log_ID);
+	icheck := 0;
+	ilooptest := 0;
+	irownumber := 1;
+	UserName := UPPER(inUsername);
+	cursor_str := 'SELECT mxname, Atr_Dec_To_Hex(mxoid),mxoid FROM '||Username||'.MXLATTICE WHERE MXFLAGS <> -1';
+
+
+
+	Atr_Write_Script_Log('Atr_dw_create_obj_ids','Start object copy from vaults',log_ID);
+	OPEN c_lattice FOR cursor_str;
+	LOOP
+		FETCH c_lattice INTO VaultName,LatticeNum,latticeOid;
+		EXIT WHEN c_lattice%NOTFOUND;
+		BEGIN
+			icheck := 0;
+			mainTableName := 'LXBO_'||LatticeNum;
+			SELECT Atr_Does_Table_Exist(Username,mainTableName) INTO icheck FROM DUAL;
+			IF icheck IS NOT NULL THEN
+
+				logmessage := 'IDs copy from Vault '||VaultName|| ' is started';
+ 				Atr_Write_Script_Log('Atr_dw_create_obj_ids',logmessage,log_ID);
+
+			        mainTableName := Username||'.'||mainTableName;
+
+				sql_str1 := 'INSERT INTO INTEG_OBJECTS_MAIN (O_TYPE,O_NAME,O_REVISION,O_ID,O_ID2,O_VAULT,O_CREATED_DATE, O_MODIFIED_DATE, LXOID, LXTYPE, LXVAULT,LXSTATE,LXPOLICY) ';
+
+
+
+				sql_str1 := sql_str1 || ' SELECT ty.O_TYPE,bo.LXNAME,bo.LXREV,ATR_OBJECTID('||LatticeOid||',bo.LXOID),ATR_OBJECTID('||LatticeOid||',bo.LXOID),'''||VaultName||''',bo.LXCRDATE,bo.LXMODDATE,bo.LXOID,bo.LXTYPE,'||LatticeOid||',bo.LXSTATE,bo.LXPOLICY FROM '||mainTableName||' bo, INTEG_DW_TYPES ty ';
+
+
+				sql_str1 := sql_str1 || ' WHERE bo.LXTYPE IN (SELECT ty1.LXTYPE FROM INTEG_DW_TYPES ty1) AND bo.LXTYPE = ty.LXTYPE';
+
+				/*
+				execute immediate 'insert into atr_sql_log (sql_str) values (:1)' using sql_str1;
+				*/
+
+				EXECUTE IMMEDIATE sql_str1;
+
+			        logmessage := 'IDs from Vault '||VaultName|| ' is copied';
+				 Atr_Write_Script_Log('Atr_dw_create_obj_ids',logmessage,log_ID);
+				COMMIT;
+			END IF;
+		END;
+		COMMIT;
+	END LOOP;
+
+	EXECUTE IMMEDIATE 'UPDATE INTEG_OBJECTS_MAIN T1 SET T1.TYPE_ID = (SELECT TYPE_ID FROM INTEG_DW_TYPES T2 WHERE T2.LXTYPE = T1.LXTYPE)';
+
+    	Atr_Write_Script_Log('Atr_dw_create_obj_ids','End',log_ID);
+	COMMIT;
+END;
+ 
+ 
+ 

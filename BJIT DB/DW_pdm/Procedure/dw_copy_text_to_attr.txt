@@ -1,0 +1,200 @@
+create or replace PROCEDURE dw_copy_text_to_attr (inUsername IN VARCHAR2) AS
+
+ UserName VARCHAR2(20);
+ VaultName VARCHAR2(128);
+
+ TableName VARCHAR2(60);
+
+ TYPE CurTyp IS REF CURSOR;
+
+ c_bus CurTyp;
+ cursor_str VARCHAR2(200);
+
+
+ logmessage VARCHAR2(255);
+
+
+ v_lxoid number;
+ v_lxvault number;
+
+ iTotalNumber number;
+ ilooptest number;
+
+ s_val1 varchar2(255);
+ s_val2 varchar2(255);
+ s_val3 varchar2(255);
+ s_attribute_name varchar2(255);
+ log_ID NUMBER := 0;
+ icheck NUMBER;
+ sLattice VARCHAR2(20);
+ IntegID NUMBER;
+ v_logset NUMBER;
+
+BEGIN
+
+       BEGIN
+              EXECUTE IMMEDIATE 'SELECT PROPERTY_VALUE_NUMBER FROM INTEG_DW_SETTINGS WHERE PROPERTY_ID = 1' INTO v_logset;
+		EXCEPTION
+		  WHEN OTHERS THEN
+                    BEGIN
+                        v_logset := 1;
+                    END;
+
+	END;
+
+        IF v_logset = 1 THEN
+          BEGIN
+	    Atr_Write_Script_Log('dw_copy_text_to_attr','Start',log_ID);
+          END;
+        END IF;
+
+        EXECUTE IMMEDIATE 'SELECT MAX(INTEG_ID) FROM INTEG_MAIN WHERE INTEG_TYPE_ID = 1' into IntegId;
+
+        EXECUTE IMMEDIATE 'INSERT INTO INTEG_LOG (INTEG_ID,LOG_TYPE_ID,LOG_TYPE,LOG_TIME1,LOG_MESSAGE,C_TIMESTAMP) VALUES (:1,2,:2,SYSDATE,:3,CURRENT_TIMESTAMP)' using IntegId,'STATUS','Status:PDM - DW Integration dw_copy_text_to_attr ...';
+
+
+	IF IntegId = 0 THEN
+          BEGIN
+
+            logmessage := 'dw_copy_text_to_attr: copy item texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS_A (O_ID,ATTR_NAME,ATTR_VALUE) SELECT O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_1 T1 WHERE T1.O_ATTR_TYPE = 1';
+            logmessage := 'dw_copy_text_to_attr: copy item texts completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS_A (REL_ID,ATTR_NAME,ATTR_VALUE) SELECT O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_1 T1 WHERE T1.O_ATTR_TYPE = 2';
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy item texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS_2_A (O_ID,ATTR_NAME,ATTR_VALUE) SELECT O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_2 T1 WHERE T1.O_ATTR_TYPE = 1';
+            logmessage := 'dw_copy_text_to_attr: copy item texts long completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS_2_A (REL_ID,ATTR_NAME,ATTR_VALUE) SELECT O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_2 T1 WHERE T1.O_ATTR_TYPE = 2';
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts long completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+            logmessage := 'dw_copy_text_to_attr: copy external item texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS_A (O_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_1 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 4';
+            logmessage := 'dw_copy_text_to_attr: copy external item texts is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy external item texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS_2_A (O_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_2 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 4';
+            logmessage := 'dw_copy_text_to_attr: copy external item texts long is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+
+            logmessage := 'dw_copy_text_to_attr: copy external bom texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS_A (REL_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_1 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 3';
+            logmessage := 'dw_copy_text_to_attr: ccopy external bom texts is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+            logmessage := 'dw_copy_text_to_attr: copy external bom texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS_2_A (REL_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_2 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 3';
+            logmessage := 'dw_copy_text_to_attr: ccopy external bom texts long is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+          END;
+         ELSE
+          BEGIN
+            logmessage := 'dw_copy_text_to_attr: copy item texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS (INTEG_ID, O_ID,ATTR_NAME,ATTR_VALUE) SELECT :1, O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_1 T1 WHERE T1.O_ATTR_TYPE = 1' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: copy item texts completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS (INTEG_ID, REL_ID,ATTR_NAME,ATTR_VALUE) SELECT :1, O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_1 T1 WHERE T1.O_ATTR_TYPE = 2' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy item texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS_2 (INTEG_ID, O_ID,ATTR_NAME,ATTR_VALUE) SELECT :1, O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_2 T1 WHERE T1.O_ATTR_TYPE = 1' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: copy item texts long completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS_2 (INTEG_ID,REL_ID,ATTR_NAME,ATTR_VALUE) SELECT :1,O_ID,O_ATTR_NAME,O_ATTR_VALUE FROM T_DW_TEXT_ATTR_2 T1 WHERE T1.O_ATTR_TYPE = 2' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: copy BOM texts long completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+            logmessage := 'dw_copy_text_to_attr: copy external item texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS (INTEG_ID, O_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT :1, T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_1 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 4' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: copy external item texts is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+
+            logmessage := 'dw_copy_text_to_attr: copy external item texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_OBJ_TEXTS_2 (INTEG_ID, O_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT :1, T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_2 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 4' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: copy external item texts long is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+            logmessage := 'dw_copy_text_to_attr: copy external bom texts is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS (INTEG_ID, REL_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT :1, T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_1 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 3' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: ccopy external bom texts is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            COMMIT;
+
+            logmessage := 'dw_copy_text_to_attr: copy external bom texts long is started ...';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+            EXECUTE IMMEDIATE 'INSERT INTO INTEG_REL_TEXTS_2 (INTEG_ID, REL_ID,ATTR_NAME,ATTR_VALUE,DELIVERY_PROJECT_ID) SELECT :1, T1.O_ID,T1.O_ATTR_NAME,T1.O_ATTR_VALUE, T2.DEPENDENCY_ID FROM T_DW_TEXT_ATTR_2 T1, T_DW_TEXTS T2 WHERE T1.O_ID = T2.O_ID AND T1.O_ATTR_TYPE = 3' using IntegId;
+            logmessage := 'dw_copy_text_to_attr: ccopy external bom texts long is completed';
+ 	    Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+          END;
+        END IF;
+
+        EXECUTE IMMEDIATE 'INSERT INTO INTEG_LOG (INTEG_ID,LOG_TYPE_ID,LOG_TYPE,LOG_TIME1,LOG_MESSAGE,C_TIMESTAMP) VALUES (:1,1,:2,SYSDATE,:3,CURRENT_TIMESTAMP)' using IntegId,'STATUS','Status OK:PDM - DW Integration dw_copy_text_to_attr completed';
+
+        IF v_logset = 1 THEN
+          BEGIN
+             logmessage := 'dw_copy_text_to_attr: copy texts completed';
+ 	     Atr_Write_Script_Log('dw_copy_text_to_attr',logmessage,log_ID);
+          END;
+        END IF;
+
+
+	COMMIT;
+END;
+ 
+ 
+ 
